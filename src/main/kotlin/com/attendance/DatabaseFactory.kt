@@ -14,7 +14,14 @@ object DatabaseFactory {
         )
 
         transaction {
-            SchemaUtils.create(Admins, Users, AttendanceRecords,Batches,Subjects,BatchSemesters,BatchSubjects)
+            SchemaUtils.create(
+                Teachers,
+                Users,
+                AttendanceRecords,
+                Batches,
+                Subjects,
+                BatchSubjects
+            )
         }
     }
 }

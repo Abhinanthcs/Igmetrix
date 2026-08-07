@@ -6,7 +6,6 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.sql.AndOp
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.batchInsert
@@ -26,6 +25,7 @@ data class BulkAttendanceRequest(
     val subjectName: String,
     val date: String,
     val hour: Int,
+    val department: String = "BCA",
     val students: List<StudentStatus>
 )
 
@@ -44,9 +44,9 @@ fun Route.configureTeacherRoutes() {
 
         val studentList = transaction {
             val query = if (!dept.isNullOrBlank()) {
-                Users.selectAll().where { Users.department eq dept }
+                Users.selectAll().where { (Users.department eq dept) and (Users.role eq "student") }
             } else {
-                Users.selectAll()
+                Users.selectAll().where { Users.role eq "student" }
             }
 
             query.map { row ->
@@ -70,7 +70,9 @@ fun Route.configureTeacherRoutes() {
 
             transaction {
                 val existingCount = AttendanceRecords.selectAll().where {
-                    (AttendanceRecords.date eq parsedDate) and (AttendanceRecords.hour eq request.hour)
+                    (AttendanceRecords.date eq parsedDate) and
+                            (AttendanceRecords.hour eq request.hour) and
+                            (AttendanceRecords.subjectCode eq request.subjectCode)
                 }.count()
 
                 if (existingCount > 0) {
@@ -84,6 +86,7 @@ fun Route.configureTeacherRoutes() {
                     this[AttendanceRecords.subjectName] = request.subjectName
                     this[AttendanceRecords.date] = parsedDate
                     this[AttendanceRecords.hour] = request.hour
+                    this[AttendanceRecords.department] = request.department
                     this[AttendanceRecords.status] = student.status
                 }
             }
@@ -91,7 +94,7 @@ fun Route.configureTeacherRoutes() {
             if (hasDuplicate) {
                 call.respond(
                     HttpStatusCode.Conflict,
-                    mapOf("error" to "Attendance for Hour ${request.hour} on ${request.date} has already been submitted!")
+                    mapOf("error" to "Attendance for Hour ${request.hour} (${request.subjectCode}) on ${request.date} has already been submitted!")
                 )
             } else {
                 call.respond(HttpStatusCode.Created, mapOf("message" to "Bulk attendance recorded successfully!"))

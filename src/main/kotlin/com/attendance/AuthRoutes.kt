@@ -12,6 +12,7 @@ import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.*
 
 @Serializable
@@ -62,33 +63,40 @@ fun Route.configureAuthRoutes(secret: String, issuer: String, audience: String) 
             val parsedDob = try {
                 LocalDate.parse(credentials.dateOfBirth)
             } catch (e: Exception) {
-                return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid date format. Use YYYY-MM-DD."))
+                try {
+                    LocalDate.parse(credentials.dateOfBirth, DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                } catch (e2: Exception) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Invalid date format. Use YYYY-MM-DD or DD-MM-YYYY.")
+                    )
+                }
             }
 
             val teacher = transaction {
-                Users.selectAll()
+                Teachers.selectAll()
                     .where {
-                        (Users.registerNumber eq credentials.teacherId) and
-                                (Users.dateOfBirth eq parsedDob) and
-                                (Users.role eq "TEACHER")
+                        (Teachers.teacherId eq credentials.teacherId) and
+                                (Teachers.dateOfBirth eq parsedDob)
                     }
                     .singleOrNull()
             }
 
             if (teacher != null) {
+                val role = "teacher"
                 val token = JWT.create()
                     .withAudience(audience)
                     .withIssuer(issuer)
-                    .withClaim("teacherId", teacher[Users.registerNumber])
-                    .withClaim("department", teacher[Users.department])
-                    .withClaim("role", teacher[Users.role])
+                    .withClaim("teacherId", teacher[Teachers.teacherId])
+                    .withClaim("department", teacher[Teachers.department])
+                    .withClaim("role", role)
                     .withExpiresAt(Date(System.currentTimeMillis() + 86_400_000)) // 24 hours
                     .sign(Algorithm.HMAC256(secret))
 
                 call.respond(AuthResponse(
                     token = token,
-                    department = teacher[Users.department],
-                    role = teacher[Users.role]
+                    department = teacher[Teachers.department],
+                    role = role
                 ))
             } else {
                 call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid Teacher ID or Date of Birth."))

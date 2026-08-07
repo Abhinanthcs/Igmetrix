@@ -12,6 +12,16 @@ object Admins : Table("admins") {
 
     override val primaryKey = PrimaryKey(id)
 }
+// --- NEW DEDICATED TEACHERS TABLE ---
+object Teachers : Table("teachers") {
+    val teacherId = varchar("teacher_id", 50)
+    val name = varchar("name", 100)
+    val dateOfBirth = date("date_of_birth")
+    val phoneNumber = varchar("phone_number", 20).nullable()
+    val department = varchar("department", 50)
+
+    override val primaryKey = PrimaryKey(teacherId)
+}
 
 object Users : Table("users") {
     val id = integer("id").autoIncrement()

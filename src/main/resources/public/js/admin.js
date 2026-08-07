@@ -100,6 +100,10 @@ function initNavigation() {
             if (activeView) {
                 activeView.classList.remove('hidden');
             }
+
+            if (targetTab === 'attendance-logs') {
+                fetchAttendanceLogs();
+            }
         });
     });
 }
@@ -408,6 +412,7 @@ async function fetchBatches() {
         const modalSelect = document.getElementById('modal-batch');
         const assignBatchSelect = document.getElementById('assign-batch-select');
         const filterAssignedBatchSelect = document.getElementById('filter-assigned-batch');
+        const logFilterBatchSelect = document.getElementById('log-filter-batch');
 
         if (filterSelect) {
             const currentVal = filterSelect.value;
@@ -421,6 +426,13 @@ async function fetchBatches() {
             filterAssignedBatchSelect.innerHTML = '<option value="ALL">All Batches</option>' +
                 batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
             filterAssignedBatchSelect.value = currentVal || 'ALL';
+        }
+
+        if (logFilterBatchSelect) {
+            const currentVal = logFilterBatchSelect.value;
+            logFilterBatchSelect.innerHTML = '<option value="ALL">All Batches</option>' +
+                batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
+            logFilterBatchSelect.value = currentVal || 'ALL';
         }
 
         if (modalSelect) {
@@ -692,4 +704,80 @@ function confirmDeleteTeacher(teacherId) {
             }
         }
     });
+}
+
+// --- ATTENDANCE LOGS AUDIT & EDIT FUNCTIONS ---
+
+async function fetchAttendanceLogs() {
+    const date = document.getElementById('log-filter-date')?.value || '';
+    const batch = document.getElementById('log-filter-batch')?.value || 'ALL';
+    const subject = document.getElementById('log-filter-subject')?.value.trim() || '';
+    const hour = document.getElementById('log-filter-hour')?.value || 'ALL';
+    const status = document.getElementById('log-filter-status')?.value || 'ALL';
+
+    const params = new URLSearchParams();
+    if (date) params.append('date', date);
+    if (batch !== 'ALL') params.append('batch', batch);
+    if (subject) params.append('subjectCode', subject);
+    if (hour !== 'ALL') params.append('hour', hour);
+    if (status !== 'ALL') params.append('status', status);
+
+    const tbody = document.getElementById('attendance-logs-table-body');
+    if (!tbody) return;
+
+    try {
+        const logs = await apiFetch(`/api/admin/attendance-logs?${params.toString()}`, 'GET');
+
+        // Update Stat Cards
+        const total = logs.length;
+        const present = logs.filter(l => l.status === 'P').length;
+        const absent = logs.filter(l => l.status === 'A').length;
+        const rate = total > 0 ? ((present / total) * 100).toFixed(1) : 0;
+
+        document.getElementById('stat-total-logs').textContent = total;
+        document.getElementById('stat-present-logs').textContent = present;
+        document.getElementById('stat-absent-logs').textContent = absent;
+        document.getElementById('stat-rate-logs').textContent = `${rate}%`;
+
+        if (!logs || logs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400 italic">No logs found matching selected criteria.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = logs.map(l => `
+            <tr class="hover:bg-slate-50 transition-colors">
+                <td class="py-3 px-4 font-mono font-bold text-slate-800">${escapeHtml(l.registerNumber)}</td>
+                <td class="py-3 px-4 font-medium text-slate-700">${escapeHtml(l.subjectCode)}</td>
+                <td class="py-3 px-4 text-center font-bold font-mono text-slate-600">${l.hour}</td>
+                <td class="py-3 px-4 text-center font-mono text-slate-500">${escapeHtml(l.date)}</td>
+                <td class="py-3 px-4 text-center">
+                    <span class="px-2.5 py-1 rounded text-[10px] font-bold font-mono ${
+                        l.status === 'P'
+                            ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
+                    }">
+                        ${l.status === 'P' ? 'PRESENT' : 'ABSENT'}
+                    </span>
+                </td>
+                <td class="py-3 px-4 text-right">
+                    <button onclick="updateAttendanceStatus(${l.id}, '${l.status === 'P' ? 'A' : 'P'}')" class="px-2.5 py-1 rounded font-bold text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all">
+                        Mark ${l.status === 'P' ? 'Absent' : 'Present'}
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error('Error fetching attendance logs:', err);
+        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-red-500 font-medium">Failed to load logs: ${escapeHtml(err.message)}</td></tr>`;
+    }
+}
+
+async function updateAttendanceStatus(logId, newStatus) {
+    try {
+        const res = await apiFetch('/api/admin/attendance-logs/update', 'PATCH', { id: logId, status: newStatus });
+        showAlert(res.message || 'Attendance status updated.');
+        fetchAttendanceLogs();
+    } catch (err) {
+        showAlert(`Failed to update status: ${err.message}`, true);
+    }
 }

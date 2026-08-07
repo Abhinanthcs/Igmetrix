@@ -10,9 +10,9 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 
 // --- DTO DEFINITIONS ---
 @Serializable data class CreateStudentRequest(val registerNumber: String, val name: String, val batch: String, val dateOfBirth: String, val phoneNumber: String)
@@ -68,6 +68,23 @@ data class AssignSubjectRequest(
     val batch: String,
     val semester: Int,
     val subjectCode: String
+)
+
+// DTOs for Attendance Audit & Editing
+@Serializable
+data class AttendanceLogResponse(
+    val id: Int,
+    val registerNumber: String,
+    val subjectCode: String,
+    val hour: Int,
+    val date: String,
+    val status: String
+)
+
+@Serializable
+data class UpdateAttendanceStatusRequest(
+    val id: Int,
+    val status: String
 )
 
 fun Application.configureAdminRoutes() {
@@ -155,7 +172,7 @@ fun Application.configureAdminRoutes() {
                                     Users,
                                     onColumn = { Batches.batch },
                                     otherColumn = { Users.batch },
-                                    additionalConstraint = { (Users.role eq "STUDENT") and (Users.department eq adminDepartment) }
+                                    additionalConstraint = { (Users.role eq "student") and (Users.department eq adminDepartment) }
                                 )
                                 .select(Batches.batch, Users.id.count())
                                 .where { Batches.department eq adminDepartment }
@@ -271,13 +288,13 @@ fun Application.configureAdminRoutes() {
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
 
                     val teachersList = transaction {
-                        Users.selectAll().where { (Users.department eq department) and (Users.role eq "teacher") }
+                        Teachers.selectAll().where { Teachers.department eq department }
                             .map { row ->
                                 TeacherResponse(
-                                    teacherId = row[Users.registerNumber],
-                                    name = row[Users.name],
-                                    dateOfBirth = row[Users.dateOfBirth].toString(),
-                                    phoneNumber = row[Users.phoneNumber] ?: "N/A"
+                                    teacherId = row[Teachers.teacherId],
+                                    name = row[Teachers.name],
+                                    dateOfBirth = row[Teachers.dateOfBirth].toString(),
+                                    phoneNumber = row[Teachers.phoneNumber] ?: "N/A"
                                 )
                             }
                     }
@@ -290,24 +307,27 @@ fun Application.configureAdminRoutes() {
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
                     val req = call.receive<CreateTeacherRequest>()
 
-                    transaction {
-                        Users.insert {
-                            it[registerNumber] = req.teacherId
-                            it[name] = req.name
-                            it[role] = "teacher"
-                            it[Users.department] = department
-                            it[dateOfBirth] = LocalDate.parse(req.dateOfBirth)
-                            it[phoneNumber] = req.phoneNumber
+                    try {
+                        transaction {
+                            Teachers.insert {
+                                it[teacherId] = req.teacherId
+                                it[name] = req.name
+                                it[Teachers.department] = department
+                                it[dateOfBirth] = LocalDate.parse(req.dateOfBirth)
+                                it[phoneNumber] = req.phoneNumber
+                            }
                         }
+                        call.respond(HttpStatusCode.Created, ApiResponse("Teacher created successfully."))
+                    } catch (e: org.jetbrains.exposed.exceptions.ExposedSQLException) {
+                        call.respond(HttpStatusCode.Conflict, ApiResponse("Teacher with this ID already exists."))
                     }
-                    call.respond(HttpStatusCode.Created, ApiResponse("Teacher created successfully."))
                 }
 
                 // POST /api/admin/delete-teacher
                 post("/delete-teacher") {
                     val req = call.receive<DeleteTeacherRequest>()
                     transaction {
-                        Users.deleteWhere { registerNumber eq req.teacherId }
+                        Teachers.deleteWhere { teacherId eq req.teacherId }
                     }
                     call.respond(ApiResponse("Teacher account removed."))
                 }
@@ -540,6 +560,91 @@ fun Application.configureAdminRoutes() {
                         call.respond(
                             HttpStatusCode.InternalServerError,
                             ApiResponse(e.message ?: "Failed to fetch semester subjects.")
+                        )
+                    }
+                }
+
+                // GET /api/admin/attendance-logs (Supports dynamic filtering across records)
+                get("/attendance-logs") {
+                    try {
+                        val principal = call.principal<JWTPrincipal>()
+                        val adminDepartment = principal?.payload?.getClaim("department")?.asString()
+                            ?: return@get call.respond(
+                                HttpStatusCode.Unauthorized,
+                                ApiResponse("Department missing from token payload.")
+                            )
+
+                        val dateParam = call.request.queryParameters["date"]
+                        val batchParam = call.request.queryParameters["batch"]
+                        val subjectCodeParam = call.request.queryParameters["subjectCode"]
+                        val hourParam = call.request.queryParameters["hour"]?.toIntOrNull()
+                        val statusParam = call.request.queryParameters["status"]
+
+                        val logs = transaction {
+                            var query = AttendanceRecords
+                                .innerJoin(Users, { AttendanceRecords.registerNumber }, { Users.registerNumber })
+                                .selectAll()
+                                .where { AttendanceRecords.department eq adminDepartment }
+
+                            if (!dateParam.isNullOrBlank()) {
+                                query = query.andWhere { AttendanceRecords.date eq LocalDate.parse(dateParam) }
+                            }
+                            if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
+                                query = query.andWhere { Users.batch eq batchParam }
+                            }
+                            if (!subjectCodeParam.isNullOrBlank()) {
+                                query = query.andWhere { AttendanceRecords.subjectCode.lowerCase() eq subjectCodeParam.lowercase() }
+                            }
+                            if (hourParam != null) {
+                                query = query.andWhere { AttendanceRecords.hour eq hourParam }
+                            }
+                            if (!statusParam.isNullOrBlank() && statusParam != "ALL") {
+                                query = query.andWhere { AttendanceRecords.status eq statusParam }
+                            }
+
+                            query.map { row ->
+                                AttendanceLogResponse(
+                                    id = row[AttendanceRecords.id],
+                                    registerNumber = row[AttendanceRecords.registerNumber],
+                                    subjectCode = row[AttendanceRecords.subjectCode],
+                                    hour = row[AttendanceRecords.hour],
+                                    date = row[AttendanceRecords.date].toString(),
+                                    status = row[AttendanceRecords.status]
+                                )
+                            }
+                        }
+
+                        call.respond(HttpStatusCode.OK, logs)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ApiResponse(e.message ?: "Failed to fetch attendance logs.")
+                        )
+                    }
+                }
+
+                // PATCH /api/admin/attendance-logs/update (Inline edit attendance status)
+                patch("/attendance-logs/update") {
+                    try {
+                        val req = call.receive<UpdateAttendanceStatusRequest>()
+
+                        val updatedRows = transaction {
+                            AttendanceRecords.update({ AttendanceRecords.id eq req.id }) {
+                                it[status] = req.status
+                            }
+                        }
+
+                        if (updatedRows > 0) {
+                            call.respond(HttpStatusCode.OK, ApiResponse("Attendance status updated."))
+                        } else {
+                            call.respond(HttpStatusCode.NotFound, ApiResponse("Record not found."))
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ApiResponse(e.message ?: "Failed to update attendance status.")
                         )
                     }
                 }

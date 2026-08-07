@@ -22,29 +22,38 @@
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden p-6 space-y-6">
         <div class="border-b border-slate-100 pb-4">
             <h1 class="text-lg font-bold text-slate-800">Class Attendance Sheet</h1>
-            <p class="text-xs text-slate-500 mt-1">Select class details at top and toggle attendance status for all students.</p>
+            <p class="text-xs text-slate-500 mt-1">Select batch, semester, and subject details to toggle attendance for all students.</p>
         </div>
 
         <div id="feedbackMessage" class="hidden p-3 text-xs font-semibold rounded-lg"></div>
 
         <form id="bulkAttendanceForm" class="space-y-6">
-            <!-- Top Controls Grid (5 Columns including Class/Dept) -->
+            <!-- Top Controls Grid -->
             <div class="grid grid-cols-1 md:grid-cols-5 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Class / Dept</label>
-                    <select id="departmentSelect" onchange="loadStudentRoster()" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="BCA">BCA</option>
-                        <option value="BSc CS">BSc CS</option>
-                        <option value="BCom">BCom</option>
+                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Batch</label>
+                    <select id="batchSelect" onchange="onBatchOrSemChange()" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select Batch</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Subject Code</label>
-                    <input type="text" id="subjectCode" required placeholder="e.g. BCA301" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Semester</label>
+                    <select id="semesterSelect" onchange="onBatchOrSemChange()" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="1">Sem 1</option>
+                        <option value="2">Sem 2</option>
+                        <option value="3">Sem 3</option>
+                        <option value="4">Sem 4</option>
+                        <option value="5">Sem 5</option>
+                        <option value="6">Sem 6</option>
+                    </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Subject Name</label>
-                    <input type="text" id="subjectName" required placeholder="e.g. Kotlin" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Subject</label>
+                    <select id="subjectSelect" onchange="onSubjectSelectChange()" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select Subject</option>
+                    </select>
+                    <input type="hidden" id="subjectCode">
+                    <input type="hidden" id="subjectName">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Date</label>
@@ -81,7 +90,7 @@
                     </thead>
                     <tbody id="studentRosterBody" class="divide-y divide-slate-100 font-medium">
                     <tr>
-                        <td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">Loading student roster...</td>
+                        <td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">Select a batch to load students...</td>
                     </tr>
                     </tbody>
                 </table>

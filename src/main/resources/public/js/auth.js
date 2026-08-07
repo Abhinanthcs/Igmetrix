@@ -62,7 +62,10 @@ document.addEventListener('DOMContentLoaded', () => {
             let endpoint = '/login';
             let payload = { registerNumber: val1, dateOfBirth: val2 };
 
-            if (currentRole === 'admin') {
+            if (currentRole === 'teacher') {
+                endpoint = '/api/auth/teacher-login';
+                payload = { teacherId: val1, dateOfBirth: val2 };
+            } else if (currentRole === 'admin') {
                 endpoint = '/api/auth/admin-login';
                 payload = { department: val1, password: val2 };
             }
