@@ -13,6 +13,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
+import org.jetbrains.exposed.sql.SortOrder
 
 // --- DTO DEFINITIONS ---
 @Serializable data class CreateStudentRequest(val registerNumber: String, val name: String, val batch: String, val dateOfBirth: String, val phoneNumber: String)
@@ -36,12 +37,6 @@ data class BatchResponse(
 @Serializable data class TeacherResponse(val teacherId: String, val name: String, val dateOfBirth: String, val phoneNumber: String)
 @Serializable data class PendingLogResponse(val id: Int, val subjectCode: String, val subjectName: String, val date: String, val hour: Int)
 @Serializable data class ApiResponse(val message: String)
-
-@Serializable
-data class CreateSubjectRequest(
-    val code: String,
-    val name: String
-)
 
 @Serializable
 data class SubjectResponse(
@@ -75,6 +70,7 @@ data class AssignSubjectRequest(
 data class AttendanceLogResponse(
     val id: Int,
     val registerNumber: String,
+    val name: String,
     val subjectCode: String,
     val hour: Int,
     val date: String,
@@ -141,7 +137,7 @@ fun Application.configureAdminRoutes() {
                             }
                         }
                         call.respond(HttpStatusCode.Created, ApiResponse("Student registered successfully."))
-                    } catch (e: org.jetbrains.exposed.exceptions.ExposedSQLException) {
+                    } catch (_: org.jetbrains.exposed.exceptions.ExposedSQLException) {
                         call.respond(HttpStatusCode.Conflict, ApiResponse("Student with this register number already exists."))
                     }
                 }
@@ -318,7 +314,7 @@ fun Application.configureAdminRoutes() {
                             }
                         }
                         call.respond(HttpStatusCode.Created, ApiResponse("Teacher created successfully."))
-                    } catch (e: org.jetbrains.exposed.exceptions.ExposedSQLException) {
+                    } catch (_: org.jetbrains.exposed.exceptions.ExposedSQLException) {
                         call.respond(HttpStatusCode.Conflict, ApiResponse("Teacher with this ID already exists."))
                     }
                 }
@@ -469,7 +465,7 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // GET /api/admin/assigned-subjects (Renders Active Semester Mappings table)
+                // GET /api/admin/assigned-subjects
                 get("/assigned-subjects") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
@@ -505,7 +501,7 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // DELETE /api/admin/assigned-subjects/{id} (Unlinks a subject from semester)
+                // DELETE /api/admin/assigned-subjects/{id}
                 delete("/assigned-subjects/{id}") {
                     try {
                         val assignmentId = call.parameters["id"]?.toIntOrNull()
@@ -564,7 +560,7 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // GET /api/admin/attendance-logs (Supports dynamic filtering across records)
+                // GET /api/admin/attendance-logs
                 get("/attendance-logs") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
@@ -576,6 +572,7 @@ fun Application.configureAdminRoutes() {
 
                         val dateParam = call.request.queryParameters["date"]
                         val batchParam = call.request.queryParameters["batch"]
+                        val semesterParam = call.request.queryParameters["semester"]?.toIntOrNull()
                         val subjectCodeParam = call.request.queryParameters["subjectCode"]
                         val hourParam = call.request.queryParameters["hour"]?.toIntOrNull()
                         val statusParam = call.request.queryParameters["status"]
@@ -584,7 +581,11 @@ fun Application.configureAdminRoutes() {
                             var query = AttendanceRecords
                                 .innerJoin(Users, { AttendanceRecords.registerNumber }, { Users.registerNumber })
                                 .selectAll()
-                                .where { AttendanceRecords.department eq adminDepartment }
+                                .where {
+                                    (AttendanceRecords.department eq adminDepartment) and
+                                            (Users.department eq adminDepartment) and
+                                            (Users.role eq "student")
+                                }
 
                             if (!dateParam.isNullOrBlank()) {
                                 query = query.andWhere { AttendanceRecords.date eq LocalDate.parse(dateParam) }
@@ -592,7 +593,17 @@ fun Application.configureAdminRoutes() {
                             if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
                                 query = query.andWhere { Users.batch eq batchParam }
                             }
-                            if (!subjectCodeParam.isNullOrBlank()) {
+                            if (semesterParam != null && !batchParam.isNullOrBlank() && batchParam != "ALL") {
+                                val validSubjectCodes = BatchSubjects
+                                    .select(BatchSubjects.subjectCode)
+                                    .where { (BatchSubjects.batch eq batchParam) and (BatchSubjects.semester eq semesterParam) }
+                                    .map { it[BatchSubjects.subjectCode] }
+
+                                if (validSubjectCodes.isNotEmpty()) {
+                                    query = query.andWhere { AttendanceRecords.subjectCode inList validSubjectCodes }
+                                }
+                            }
+                            if (!subjectCodeParam.isNullOrBlank() && subjectCodeParam != "ALL") {
                                 query = query.andWhere { AttendanceRecords.subjectCode.lowerCase() eq subjectCodeParam.lowercase() }
                             }
                             if (hourParam != null) {
@@ -602,10 +613,16 @@ fun Application.configureAdminRoutes() {
                                 query = query.andWhere { AttendanceRecords.status eq statusParam }
                             }
 
-                            query.map { row ->
+                            // ORDER BY ENFORCED HERE TO PREVENT ROW MOVEMENTS ON UPDATE
+                            query.orderBy(
+                                AttendanceRecords.registerNumber to SortOrder.ASC,
+                                AttendanceRecords.date to SortOrder.DESC,
+                                AttendanceRecords.hour to SortOrder.ASC
+                            ).map { row ->
                                 AttendanceLogResponse(
                                     id = row[AttendanceRecords.id],
                                     registerNumber = row[AttendanceRecords.registerNumber],
+                                    name = row[Users.name],
                                     subjectCode = row[AttendanceRecords.subjectCode],
                                     hour = row[AttendanceRecords.hour],
                                     date = row[AttendanceRecords.date].toString(),
@@ -624,7 +641,32 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // PATCH /api/admin/attendance-logs/update (Inline edit attendance status)
+                // POST /api/admin/update-attendance (Matches admin.js toggle call)
+                post("/update-attendance") {
+                    try {
+                        val req = call.receive<UpdateAttendanceStatusRequest>()
+
+                        val updatedRows = transaction {
+                            AttendanceRecords.update({ AttendanceRecords.id eq req.id }) {
+                                it[status] = req.status
+                            }
+                        }
+
+                        if (updatedRows > 0) {
+                            call.respond(HttpStatusCode.OK, ApiResponse("Attendance status updated successfully."))
+                        } else {
+                            call.respond(HttpStatusCode.NotFound, ApiResponse("Record not found."))
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ApiResponse(e.message ?: "Failed to update attendance status.")
+                        )
+                    }
+                }
+
+                // PATCH /api/admin/attendance-logs/update
                 patch("/attendance-logs/update") {
                     try {
                         val req = call.receive<UpdateAttendanceStatusRequest>()

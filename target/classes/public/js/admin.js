@@ -102,7 +102,7 @@ function initNavigation() {
             }
 
             if (targetTab === 'attendance-logs') {
-                fetchAttendanceLogs();
+                populateSubjectFilter().then(() => fetchAttendanceLogs());
             }
         });
     });
@@ -131,6 +131,23 @@ function initFilterListeners() {
     // Active semester mapping filters
     document.getElementById('filter-assigned-batch')?.addEventListener('change', renderAssignedSubjectsTable);
     document.getElementById('filter-assigned-semester')?.addEventListener('change', renderAssignedSubjectsTable);
+
+    // Attendance log filters
+    document.getElementById('log-filter-date')?.addEventListener('change', fetchAttendanceLogs);
+
+    document.getElementById('log-filter-batch')?.addEventListener('change', async () => {
+        await populateSubjectFilter();
+        fetchAttendanceLogs();
+    });
+
+    document.getElementById('log-filter-semester')?.addEventListener('change', async () => {
+        await populateSubjectFilter();
+        fetchAttendanceLogs();
+    });
+
+    document.getElementById('log-filter-subject')?.addEventListener('change', fetchAttendanceLogs);
+    document.getElementById('log-filter-hour')?.addEventListener('change', fetchAttendanceLogs);
+    document.getElementById('log-filter-status')?.addEventListener('change', fetchAttendanceLogs);
 }
 
 // Global Alerts
@@ -161,17 +178,19 @@ function requestConfirmation({ title, message, onConfirm }) {
 
     if (!modal) return;
 
-    titleEl.textContent = title;
-    msgEl.textContent = message;
+    if (titleEl) titleEl.textContent = title;
+    if (msgEl) msgEl.textContent = message;
     modal.classList.remove('hidden');
 
     const closeModal = () => modal.classList.add('hidden');
 
-    cancelBtn.onclick = closeModal;
-    proceedBtn.onclick = async () => {
-        closeModal();
-        await onConfirm();
-    };
+    if (cancelBtn) cancelBtn.onclick = closeModal;
+    if (proceedBtn) {
+        proceedBtn.onclick = async () => {
+            closeModal();
+            await onConfirm();
+        };
+    }
 }
 
 // Initial Data Fetching
@@ -184,6 +203,7 @@ async function loadDashboardData() {
         fetchSubjects(),
         fetchAssignedSubjects()
     ]);
+    await populateSubjectFilter();
 }
 
 // --- FORM & BUTTON HANDLERS ---
@@ -192,11 +212,11 @@ function initFormListeners() {
     document.getElementById('create-student-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
-            registerNumber: document.getElementById('modal-reg').value.trim(),
-            name: document.getElementById('modal-name').value.trim(),
-            batch: document.getElementById('modal-batch').value,
-            dateOfBirth: document.getElementById('modal-dob').value,
-            phoneNumber: document.getElementById('modal-phone').value.trim() || 'N/A'
+            registerNumber: document.getElementById('modal-reg')?.value.trim(),
+            name: document.getElementById('modal-name')?.value.trim(),
+            batch: document.getElementById('modal-batch')?.value,
+            dateOfBirth: document.getElementById('modal-dob')?.value,
+            phoneNumber: document.getElementById('modal-phone')?.value.trim() || 'N/A'
         };
 
         try {
@@ -251,8 +271,8 @@ function initFormListeners() {
 // Handle Batch Creation
 async function handleCreateBatch(event) {
     event.preventDefault();
-    const startYearInput = document.getElementById('batch-start-year').value.trim();
-    const endYearInput = document.getElementById('batch-end-year').value.trim();
+    const startYearInput = document.getElementById('batch-start-year')?.value.trim() || '';
+    const endYearInput = document.getElementById('batch-end-year')?.value.trim() || '';
 
     const startYear = parseInt(startYearInput, 10);
     const endYear = parseInt(endYearInput, 10);
@@ -276,10 +296,10 @@ async function handleCreateBatch(event) {
 async function handleCreateTeacher(event) {
     event.preventDefault();
     const payload = {
-        teacherId: document.getElementById('teacher-id').value.trim(),
-        name: document.getElementById('teacher-name').value.trim(),
-        dateOfBirth: document.getElementById('teacher-dob').value,
-        phoneNumber: document.getElementById('teacher-phone').value.trim() || 'N/A'
+        teacherId: document.getElementById('teacher-id')?.value.trim(),
+        name: document.getElementById('teacher-name')?.value.trim(),
+        dateOfBirth: document.getElementById('teacher-dob')?.value,
+        phoneNumber: document.getElementById('teacher-phone')?.value.trim() || 'N/A'
     };
 
     try {
@@ -296,15 +316,16 @@ async function handleCreateTeacher(event) {
 async function handleCreateSubject(event) {
     event.preventDefault();
     const payload = {
-        code: document.getElementById('subject-code').value.trim(),
-        name: document.getElementById('subject-name').value.trim()
+        code: document.getElementById('subject-code')?.value.trim(),
+        name: document.getElementById('subject-name')?.value.trim()
     };
 
     try {
         const res = await apiFetch('/api/admin/subjects', 'POST', payload);
         showAlert(res.message || 'Subject added to catalog.');
         document.getElementById('create-subject-form')?.reset();
-        fetchSubjects();
+        await fetchSubjects();
+        await populateSubjectFilter();
     } catch (err) {
         showAlert(`Failed to create subject: ${err.message}`, true);
     }
@@ -314,16 +335,17 @@ async function handleCreateSubject(event) {
 async function handleAssignSubject(event) {
     event.preventDefault();
     const payload = {
-        batch: document.getElementById('assign-batch-select').value,
-        semester: parseInt(document.getElementById('assign-semester-select').value, 10),
-        subjectCode: document.getElementById('assign-subject-select').value
+        batch: document.getElementById('assign-batch-select')?.value,
+        semester: parseInt(document.getElementById('assign-semester-select')?.value, 10),
+        subjectCode: document.getElementById('assign-subject-select')?.value
     };
 
     try {
         const res = await apiFetch('/api/admin/batches/assign-subject', 'POST', payload);
         showAlert(res.message || 'Subject assigned to semester successfully.');
         document.getElementById('assign-subject-form')?.reset();
-        fetchAssignedSubjects(); // Refresh mapping table immediately
+        await fetchAssignedSubjects();
+        await populateSubjectFilter();
     } catch (err) {
         showAlert(`Failed to assign subject: ${err.message}`, true);
     }
@@ -414,35 +436,32 @@ async function fetchBatches() {
         const filterAssignedBatchSelect = document.getElementById('filter-assigned-batch');
         const logFilterBatchSelect = document.getElementById('log-filter-batch');
 
+        const batchOptions = (batches || []).map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
+
         if (filterSelect) {
             const currentVal = filterSelect.value;
-            filterSelect.innerHTML = '<option value="ALL">All Batches</option>' +
-                batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
+            filterSelect.innerHTML = '<option value="ALL">All Batches</option>' + batchOptions;
             filterSelect.value = currentVal || 'ALL';
         }
 
         if (filterAssignedBatchSelect) {
             const currentVal = filterAssignedBatchSelect.value;
-            filterAssignedBatchSelect.innerHTML = '<option value="ALL">All Batches</option>' +
-                batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
+            filterAssignedBatchSelect.innerHTML = '<option value="ALL">All Batches</option>' + batchOptions;
             filterAssignedBatchSelect.value = currentVal || 'ALL';
         }
 
         if (logFilterBatchSelect) {
             const currentVal = logFilterBatchSelect.value;
-            logFilterBatchSelect.innerHTML = '<option value="ALL">All Batches</option>' +
-                batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
+            logFilterBatchSelect.innerHTML = '<option value="ALL">All Batches</option>' + batchOptions;
             logFilterBatchSelect.value = currentVal || 'ALL';
         }
 
         if (modalSelect) {
-            modalSelect.innerHTML = '<option value="" disabled selected>Select Batch</option>' +
-                batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
+            modalSelect.innerHTML = '<option value="" disabled selected>Select Batch</option>' + batchOptions;
         }
 
         if (assignBatchSelect) {
-            assignBatchSelect.innerHTML = '<option value="" disabled selected>Select Batch</option>' +
-                batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
+            assignBatchSelect.innerHTML = '<option value="" disabled selected>Select Batch</option>' + batchOptions;
         }
     } catch (err) {
         console.error('Error fetching batches:', err);
@@ -478,6 +497,63 @@ async function fetchSubjects() {
     } catch (err) {
         console.error('Error fetching subjects:', err);
         showAlert(`Failed to load subject catalog: ${err.message}`, true);
+    }
+}
+
+// --- DYNAMIC SUBJECT DROPDOWN POPULATION ---
+
+async function populateSubjectFilter() {
+    const subjectSelect = document.getElementById('log-filter-subject');
+    if (!subjectSelect) return;
+
+    const selectedBatch = document.getElementById('log-filter-batch')?.value || 'ALL';
+    const selectedSemester = document.getElementById('log-filter-semester')?.value || 'ALL';
+    const previousValue = subjectSelect.value;
+
+    try {
+        let subjects = [];
+
+        // Check assigned subjects cache first if batch or semester filters are active
+        if (selectedBatch !== 'ALL' || selectedSemester !== 'ALL') {
+            const filteredMappings = assignedSubjectsCache.filter(item => {
+                const matchBatch = selectedBatch === 'ALL' || String(item.batch) === String(selectedBatch);
+                const matchSem = selectedSemester === 'ALL' || String(item.semester) === String(selectedSemester);
+                return matchBatch && matchSem;
+            });
+
+            if (filteredMappings.length > 0) {
+                subjects = filteredMappings.map(item => ({
+                    code: item.subjectCode,
+                    name: item.subjectName
+                }));
+            }
+        }
+
+        // Fallback: fetch directly from catalog if no specific assignment filter matched
+        if (subjects.length === 0) {
+            const catalog = await apiFetch('/api/admin/subjects', 'GET');
+            subjects = catalog || [];
+        }
+
+        // Deduplicate subjects by code
+        const uniqueSubjects = Array.from(
+            new Map(subjects.map(s => [s.code || s.subjectCode, s])).values()
+        );
+
+        subjectSelect.innerHTML = '<option value="ALL">All Subjects</option>' +
+            uniqueSubjects.map(s => {
+                const code = s.code || s.subjectCode;
+                const name = s.name || s.subjectName || code;
+                return `<option value="${escapeHtml(code)}">${escapeHtml(code)} - ${escapeHtml(name)}</option>`;
+            }).join('');
+
+        if (previousValue && Array.from(subjectSelect.options).some(opt => opt.value === previousValue)) {
+            subjectSelect.value = previousValue;
+        } else {
+            subjectSelect.value = 'ALL';
+        }
+    } catch (err) {
+        console.error('Failed to populate subject filter:', err);
     }
 }
 
@@ -532,7 +608,8 @@ function confirmUnlinkSubject(assignmentId) {
             try {
                 const res = await apiFetch(`/api/admin/assigned-subjects/${assignmentId}`, 'DELETE');
                 showAlert(res.message || 'Subject unlinked successfully.');
-                fetchAssignedSubjects();
+                await fetchAssignedSubjects();
+                await populateSubjectFilter();
             } catch (err) {
                 showAlert(`Error unlinking subject: ${err.message}`, true);
             }
@@ -549,11 +626,11 @@ async function viewBatchRoster(batchName) {
 
     if (!modal || !tbody) return;
 
-    title.textContent = `Students in Batch ${batchName}`;
+    if (title) title.textContent = `Students in Batch ${batchName}`;
     tbody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-400 italic">Loading students...</td></tr>`;
     modal.classList.remove('hidden');
 
-    closeBtn.onclick = () => modal.classList.add('hidden');
+    if (closeBtn) closeBtn.onclick = () => modal.classList.add('hidden');
 
     try {
         const students = await apiFetch(`/api/admin/batch-students?batch=${encodeURIComponent(batchName)}`, 'GET');
@@ -711,14 +788,16 @@ function confirmDeleteTeacher(teacherId) {
 async function fetchAttendanceLogs() {
     const date = document.getElementById('log-filter-date')?.value || '';
     const batch = document.getElementById('log-filter-batch')?.value || 'ALL';
-    const subject = document.getElementById('log-filter-subject')?.value.trim() || '';
+    const semester = document.getElementById('log-filter-semester')?.value || 'ALL';
+    const subject = document.getElementById('log-filter-subject')?.value || 'ALL';
     const hour = document.getElementById('log-filter-hour')?.value || 'ALL';
     const status = document.getElementById('log-filter-status')?.value || 'ALL';
 
     const params = new URLSearchParams();
     if (date) params.append('date', date);
     if (batch !== 'ALL') params.append('batch', batch);
-    if (subject) params.append('subjectCode', subject);
+    if (semester !== 'ALL') params.append('semester', semester);
+    if (subject !== 'ALL') params.append('subjectCode', subject);
     if (hour !== 'ALL') params.append('hour', hour);
     if (status !== 'ALL') params.append('status', status);
 
@@ -728,54 +807,66 @@ async function fetchAttendanceLogs() {
     try {
         const logs = await apiFetch(`/api/admin/attendance-logs?${params.toString()}`, 'GET');
 
-        // Update Stat Cards
+        // Update Stat Cards safely
         const total = logs.length;
-        const present = logs.filter(l => l.status === 'P').length;
-        const absent = logs.filter(l => l.status === 'A').length;
+        const present = logs.filter(l => l.status === 'P' || l.status === 'PRESENT').length;
+        const absent = logs.filter(l => l.status === 'A' || l.status === 'ABSENT').length;
         const rate = total > 0 ? ((present / total) * 100).toFixed(1) : 0;
 
-        document.getElementById('stat-total-logs').textContent = total;
-        document.getElementById('stat-present-logs').textContent = present;
-        document.getElementById('stat-absent-logs').textContent = absent;
-        document.getElementById('stat-rate-logs').textContent = `${rate}%`;
+        const statTotal = document.getElementById('stat-total-logs');
+        const statPresent = document.getElementById('stat-present-logs');
+        const statAbsent = document.getElementById('stat-absent-logs');
+        const statRate = document.getElementById('stat-rate-logs');
+
+        if (statTotal) statTotal.textContent = total;
+        if (statPresent) statPresent.textContent = present;
+        if (statAbsent) statAbsent.textContent = absent;
+        if (statRate) statRate.textContent = `${rate}%`;
 
         if (!logs || logs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400 italic">No logs found matching selected criteria.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-400 italic">No logs found matching selected criteria.</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = logs.map(l => `
-            <tr class="hover:bg-slate-50 transition-colors">
-                <td class="py-3 px-4 font-mono font-bold text-slate-800">${escapeHtml(l.registerNumber)}</td>
-                <td class="py-3 px-4 font-medium text-slate-700">${escapeHtml(l.subjectCode)}</td>
-                <td class="py-3 px-4 text-center font-bold font-mono text-slate-600">${l.hour}</td>
-                <td class="py-3 px-4 text-center font-mono text-slate-500">${escapeHtml(l.date)}</td>
-                <td class="py-3 px-4 text-center">
-                    <span class="px-2.5 py-1 rounded text-[10px] font-bold font-mono ${
-                        l.status === 'P'
-                            ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
-                            : 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
-                    }">
-                        ${l.status === 'P' ? 'PRESENT' : 'ABSENT'}
-                    </span>
-                </td>
-                <td class="py-3 px-4 text-right">
-                    <button onclick="updateAttendanceStatus(${l.id}, '${l.status === 'P' ? 'A' : 'P'}')" class="px-2.5 py-1 rounded font-bold text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all">
-                        Mark ${l.status === 'P' ? 'Absent' : 'Present'}
-                    </button>
-                </td>
-            </tr>
-        `).join('');
+        tbody.innerHTML = logs.map(l => {
+            const isPresent = l.status === 'P' || l.status === 'PRESENT';
+            const newStatus = isPresent ? 'A' : 'P';
+            return `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="py-3 px-4 font-mono font-bold text-slate-800">${escapeHtml(l.registerNumber)}</td>
+                    <td class="py-3 px-4 font-medium text-slate-700">${escapeHtml(l.name || l.studentName || 'N/A')}</td>
+                    <td class="py-3 px-4 font-mono font-bold text-indigo-600">${escapeHtml(l.subjectCode || l.subject)}</td>
+                    <td class="py-3 px-4 text-center font-medium text-slate-600">Hour ${escapeHtml(String(l.hour))}</td>
+                    <td class="py-3 px-4 text-center font-mono text-slate-500">${escapeHtml(l.date)}</td>
+                    <td class="py-3 px-4 text-center">
+                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold font-mono ${
+                            isPresent ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                        }">
+                            ${isPresent ? 'PRESENT' : 'ABSENT'}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        <button onclick="updateLogStatus('${l.id}', '${newStatus}')" className="${
+                            isPresent
+                                ? 'px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-xs transition-all shadow-sm'
+                                : 'px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-all shadow-sm'
+                        }">
+                            Mark ${isPresent ? 'Absent' : 'Present'}
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
     } catch (err) {
         console.error('Error fetching attendance logs:', err);
-        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-red-500 font-medium">Failed to load logs: ${escapeHtml(err.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-red-500 font-medium">Failed to load attendance logs: ${escapeHtml(err.message)}</td></tr>`;
     }
 }
 
-async function updateAttendanceStatus(logId, newStatus) {
+async function updateLogStatus(logId, status) {
     try {
-        const res = await apiFetch('/api/admin/attendance-logs/update', 'PATCH', { id: logId, status: newStatus });
-        showAlert(res.message || 'Attendance status updated.');
+        const res = await apiFetch('/api/admin/attendance-logs/status', 'POST', { logId, status });
+        showAlert(res.message || 'Attendance status updated successfully.');
         fetchAttendanceLogs();
     } catch (err) {
         showAlert(`Failed to update status: ${err.message}`, true);
