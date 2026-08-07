@@ -3,6 +3,20 @@ const TOKEN_KEY = 'jwtToken';
 
 // In-memory cache for client-side search & filtering
 let allStudentsCache = [];
+let assignedSubjectsCache = []; // Global cache for active semester mappings
+
+/**
+ * Utility to escape HTML and prevent XSS injections
+ */
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 
 /**
  * Standard fetch helper that auto-injects JWT Authorization headers
@@ -105,10 +119,14 @@ function initModalControls() {
     cancelBtn?.addEventListener('click', closeModal);
 }
 
-// Student Search & Filter Listeners
+// Search & Filter Listeners
 function initFilterListeners() {
     document.getElementById('student-search')?.addEventListener('input', applyStudentFilters);
     document.getElementById('student-batch-filter')?.addEventListener('change', applyStudentFilters);
+
+    // Active semester mapping filters
+    document.getElementById('filter-assigned-batch')?.addEventListener('change', renderAssignedSubjectsTable);
+    document.getElementById('filter-assigned-semester')?.addEventListener('change', renderAssignedSubjectsTable);
 }
 
 // Global Alerts
@@ -159,7 +177,8 @@ async function loadDashboardData() {
         fetchBatches(),
         fetchTeachers(),
         fetchPendingLogs(),
-        fetchSubjects()
+        fetchSubjects(),
+        fetchAssignedSubjects()
     ]);
 }
 
@@ -182,7 +201,7 @@ function initFormListeners() {
             document.getElementById('crud-modal')?.classList.add('hidden');
             e.target.reset();
             fetchStudents();
-            fetchBatches(); // Refresh batch counters
+            fetchBatches();
         } catch (err) {
             showAlert(`Failed to register student: ${err.message}`, true);
         }
@@ -200,7 +219,7 @@ function initFormListeners() {
     // 5. Subject Semester Assignment Form
     document.getElementById('assign-subject-form')?.addEventListener('submit', handleAssignSubject);
 
-    // 6. Rollover Button with Safeguard Confirmation Modal
+    // 6. Rollover Button
     document.getElementById('rollover-btn')?.addEventListener('click', () => {
         requestConfirmation({
             title: 'Execute Semester Rollover?',
@@ -298,8 +317,9 @@ async function handleAssignSubject(event) {
 
     try {
         const res = await apiFetch('/api/admin/batches/assign-subject', 'POST', payload);
-        showAlert(res.message || 'Subject assigned to semester.');
+        showAlert(res.message || 'Subject assigned to semester successfully.');
         document.getElementById('assign-subject-form')?.reset();
+        fetchAssignedSubjects(); // Refresh mapping table immediately
     } catch (err) {
         showAlert(`Failed to assign subject: ${err.message}`, true);
     }
@@ -342,12 +362,12 @@ function renderStudentTable(students) {
 
     tbody.innerHTML = students.map(s => `
         <tr class="hover:bg-slate-50 transition-colors">
-            <td class="py-3 px-6 font-mono font-bold text-slate-800">${s.registerNumber}</td>
-            <td class="py-3 px-6 font-medium text-slate-700">${s.name}</td>
-            <td class="py-3 px-6 text-slate-500">${s.department} / ${s.batch}</td>
+            <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(s.registerNumber)}</td>
+            <td class="py-3 px-6 font-medium text-slate-700">${escapeHtml(s.name)}</td>
+            <td class="py-3 px-6 text-slate-500">${escapeHtml(s.department)} / ${escapeHtml(s.batch)}</td>
             <td class="py-3 px-6 font-mono font-bold text-slate-800">${s.attendancePercentage}%</td>
             <td class="py-3 px-6 text-right">
-                <button onclick="confirmDeleteStudent('${s.registerNumber}')" class="text-red-500 hover:text-red-700 font-bold">Delete</button>
+                <button onclick="confirmDeleteStudent('${escapeHtml(s.registerNumber)}')" class="text-red-500 hover:text-red-700 font-bold">Delete</button>
             </td>
         </tr>
     `).join('');
@@ -365,8 +385,8 @@ async function fetchBatches() {
                 tbody.innerHTML = batches.map(b => `
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="py-3 px-6 font-mono font-bold text-slate-800 flex items-center gap-3">
-                            <span>${b.batch}</span>
-                            <button onclick="viewBatchRoster('${b.batch}')" title="View Students" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                            <span>${escapeHtml(b.batch)}</span>
+                            <button onclick="viewBatchRoster('${escapeHtml(b.batch)}')" title="View Students" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
@@ -376,7 +396,7 @@ async function fetchBatches() {
                             <span class="px-2 py-1 bg-slate-100 rounded-md text-xs">${b.studentCount || 0}</span>
                         </td>
                         <td class="py-3 px-6 text-right">
-                            <button onclick="confirmDeleteBatch('${b.batch}', ${b.studentCount || 0})" class="text-red-500 hover:text-red-700 font-bold">Delete</button>
+                            <button onclick="confirmDeleteBatch('${escapeHtml(b.batch)}', ${b.studentCount || 0})" class="text-red-500 hover:text-red-700 font-bold">Delete</button>
                         </td>
                     </tr>
                 `).join('');
@@ -387,22 +407,30 @@ async function fetchBatches() {
         const filterSelect = document.getElementById('student-batch-filter');
         const modalSelect = document.getElementById('modal-batch');
         const assignBatchSelect = document.getElementById('assign-batch-select');
+        const filterAssignedBatchSelect = document.getElementById('filter-assigned-batch');
 
         if (filterSelect) {
             const currentVal = filterSelect.value;
             filterSelect.innerHTML = '<option value="ALL">All Batches</option>' +
-                batches.map(b => `<option value="${b.batch}">${b.batch}</option>`).join('');
+                batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
             filterSelect.value = currentVal || 'ALL';
+        }
+
+        if (filterAssignedBatchSelect) {
+            const currentVal = filterAssignedBatchSelect.value;
+            filterAssignedBatchSelect.innerHTML = '<option value="ALL">All Batches</option>' +
+                batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
+            filterAssignedBatchSelect.value = currentVal || 'ALL';
         }
 
         if (modalSelect) {
             modalSelect.innerHTML = '<option value="" disabled selected>Select Batch</option>' +
-                batches.map(b => `<option value="${b.batch}">${b.batch}</option>`).join('');
+                batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
         }
 
         if (assignBatchSelect) {
             assignBatchSelect.innerHTML = '<option value="" disabled selected>Select Batch</option>' +
-                batches.map(b => `<option value="${b.batch}">${b.batch}</option>`).join('');
+                batches.map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
         }
     } catch (err) {
         console.error('Error fetching batches:', err);
@@ -413,33 +441,91 @@ async function fetchSubjects() {
     try {
         const subjects = await apiFetch('/api/admin/subjects', 'GET');
 
-        // Populate Table
+        // 1. Populate Subject Catalog Table
         const tbody = document.getElementById('subject-table-body');
         if (tbody) {
-            if (!subjects || subjects.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="3" class="py-4 px-6 text-center text-slate-400 italic">No subjects added to catalog.</td></tr>`;
-            } else {
-                tbody.innerHTML = subjects.map(s => `
+            tbody.innerHTML = (subjects && subjects.length > 0)
+                ? subjects.map(s => `
                     <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="py-3 px-6 font-mono font-bold text-slate-800">${s.code}</td>
-                        <td class="py-3 px-6 font-medium text-slate-700">${s.name}</td>
+                        <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(s.code)}</td>
+                        <td class="py-3 px-6 text-slate-700">${escapeHtml(s.name)}</td>
                         <td class="py-3 px-6 text-right">
-                            <span class="text-xs text-slate-400 font-mono">Active</span>
+                            <span class="px-2 py-1 bg-green-500/10 text-green-600 rounded text-[10px] font-bold font-mono">ACTIVE</span>
                         </td>
                     </tr>
-                `).join('');
-            }
+                `).join('')
+                : `<tr><td colspan="3" class="py-4 text-center text-slate-400 italic">No subjects in catalog.</td></tr>`;
         }
 
-        // Populate Subject Selection Dropdown in Subject Assignment Form
-        const assignSubjectSelect = document.getElementById('assign-subject-select');
-        if (assignSubjectSelect) {
-            assignSubjectSelect.innerHTML = '<option value="" disabled selected>Select Subject</option>' +
-                subjects.map(s => `<option value="${s.code}">${s.code} - ${s.name}</option>`).join('');
+        // 2. Populate 'Assign Subject' Dropdown
+        const assignSelect = document.getElementById('assign-subject-select');
+        if (assignSelect) {
+            assignSelect.innerHTML = `<option value="" disabled selected>Select Subject</option>` +
+                (subjects || []).map(s => `<option value="${escapeHtml(s.code)}">${escapeHtml(s.code)} - ${escapeHtml(s.name)}</option>`).join('');
         }
     } catch (err) {
         console.error('Error fetching subjects:', err);
+        showAlert(`Failed to load subject catalog: ${err.message}`, true);
     }
+}
+
+// --- ACTIVE SEMESTER MAPPINGS FUNCTIONS ---
+
+async function fetchAssignedSubjects() {
+    try {
+        const assigned = await apiFetch('/api/admin/assigned-subjects', 'GET');
+        assignedSubjectsCache = assigned || [];
+        renderAssignedSubjectsTable();
+    } catch (err) {
+        console.error('Error fetching assigned subjects:', err);
+    }
+}
+
+function renderAssignedSubjectsTable() {
+    const tbody = document.getElementById('assigned-subjects-table-body');
+    const selectedBatch = document.getElementById('filter-assigned-batch')?.value || 'ALL';
+    const selectedSemester = document.getElementById('filter-assigned-semester')?.value || 'ALL';
+
+    if (!tbody) return;
+
+    const filtered = assignedSubjectsCache.filter(item => {
+        const matchesBatch = selectedBatch === 'ALL' || String(item.batch) === String(selectedBatch);
+        const matchesSem = selectedSemester === 'ALL' || String(item.semester) === String(selectedSemester);
+        return matchesBatch && matchesSem;
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-4 px-6 text-center text-slate-400 italic">No active subject mappings found.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(item => `
+        <tr class="hover:bg-slate-50 transition-colors">
+            <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(item.batch)}</td>
+            <td class="py-3 px-6 font-medium text-slate-700">Sem ${item.semester}</td>
+            <td class="py-3 px-6 font-mono font-bold text-indigo-600">${escapeHtml(item.subjectCode)}</td>
+            <td class="py-3 px-6 font-medium text-slate-800">${escapeHtml(item.subjectName)}</td>
+            <td class="py-3 px-6 text-right">
+                <button onclick="confirmUnlinkSubject('${item.id}')" class="text-red-500 hover:text-red-700 font-bold">Unlink</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function confirmUnlinkSubject(assignmentId) {
+    requestConfirmation({
+        title: 'Unlink Subject?',
+        message: 'Are you sure you want to remove this subject mapping from the active semester cycle?',
+        onConfirm: async () => {
+            try {
+                const res = await apiFetch(`/api/admin/assigned-subjects/${assignmentId}`, 'DELETE');
+                showAlert(res.message || 'Subject unlinked successfully.');
+                fetchAssignedSubjects();
+            } catch (err) {
+                showAlert(`Error unlinking subject: ${err.message}`, true);
+            }
+        }
+    });
 }
 
 // Handler for fetching and opening batch roster modal
@@ -467,9 +553,9 @@ async function viewBatchRoster(batchName) {
 
         tbody.innerHTML = students.map(s => `
             <tr class="hover:bg-slate-50 transition-colors">
-                <td class="px-4 py-2.5 font-mono font-bold text-slate-800">${s.registerNumber}</td>
-                <td class="px-4 py-2.5 font-medium text-slate-700">${s.name}</td>
-                <td class="px-4 py-2.5 text-slate-500">${s.phoneNumber || 'N/A'}</td>
+                <td class="px-4 py-2.5 font-mono font-bold text-slate-800">${escapeHtml(s.registerNumber)}</td>
+                <td class="px-4 py-2.5 font-medium text-slate-700">${escapeHtml(s.name)}</td>
+                <td class="px-4 py-2.5 text-slate-500">${escapeHtml(s.phoneNumber || 'N/A')}</td>
             </tr>
         `).join('');
     } catch (err) {
@@ -490,12 +576,12 @@ async function fetchTeachers() {
 
         tbody.innerHTML = teachers.map(t => `
             <tr class="hover:bg-slate-50 transition-colors">
-                <td class="py-3 px-6 font-mono font-bold text-slate-800">${t.teacherId}</td>
-                <td class="py-3 px-6 font-medium text-slate-700">${t.name}</td>
-                <td class="py-3 px-6 text-slate-500">${t.dateOfBirth}</td>
-                <td class="py-3 px-6 text-slate-500">${t.phoneNumber || 'N/A'}</td>
+                <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(t.teacherId)}</td>
+                <td class="py-3 px-6 font-medium text-slate-700">${escapeHtml(t.name)}</td>
+                <td class="py-3 px-6 text-slate-500">${escapeHtml(t.dateOfBirth)}</td>
+                <td class="py-3 px-6 text-slate-500">${escapeHtml(t.phoneNumber || 'N/A')}</td>
                 <td class="py-3 px-6 text-right">
-                    <button onclick="confirmDeleteTeacher('${t.teacherId}')" class="text-red-500 hover:text-red-700 font-bold">Remove</button>
+                    <button onclick="confirmDeleteTeacher('${escapeHtml(t.teacherId)}')" class="text-red-500 hover:text-red-700 font-bold">Remove</button>
                 </td>
             </tr>
         `).join('');
@@ -518,8 +604,8 @@ async function fetchPendingLogs() {
         container.innerHTML = logs.map(l => `
             <div class="p-4 bg-white border border-slate-200 rounded-xl flex justify-between items-center text-xs shadow-sm">
                 <div>
-                    <span class="font-bold text-slate-800">${l.subjectName} (${l.subjectCode})</span> - Hour ${l.hour}
-                    <span class="font-mono text-slate-600">(${l.date})</span>
+                    <span class="font-bold text-slate-800">${escapeHtml(l.subjectName)} (${escapeHtml(l.subjectCode)})</span> - Hour ${l.hour}
+                    <span class="font-mono text-slate-600">(${escapeHtml(l.date)})</span>
                 </div>
                 <div class="flex gap-2">
                     <button onclick="approvePendingLog(${l.id})" class="px-3 py-1 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-all">Approve</button>

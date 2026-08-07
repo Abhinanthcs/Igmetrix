@@ -76,4 +76,9 @@ object BatchSubjects : Table("batch_subjects") {
     val subjectCode = varchar("subject_code", 20).references(Subjects.code, onDelete = ReferenceOption.CASCADE)
 
     override val primaryKey = PrimaryKey(id)
+
+    init {
+        // Enforces unique assignment per batch, semester, and subject
+        uniqueIndex("unique_batch_sem_subject", batch, semester, subjectCode)
+    }
 }

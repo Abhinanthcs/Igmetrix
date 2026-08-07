@@ -208,6 +208,7 @@
             <p class="text-xs text-slate-500 mt-1">Configure subjects in your department catalog and assign them to specific batch semesters</p>
         </div>
 
+        <!-- Forms Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Card 1: Add Subject to Catalog -->
             <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -265,17 +266,56 @@
             </div>
         </div>
 
-        <!-- Subject Catalog Overview Table -->
+        <!-- PRIMARY FOCUS: Active Semester Mappings Table -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide">Active Semester Mappings</h4>
+                    <p class="text-[10px] text-slate-500 mt-0.5">View and manage subjects linked to specific batch semesters</p>
+                </div>
+                <!-- Dynamic Filters -->
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <select id="filter-assigned-batch" class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 outline-none">
+                        <option value="ALL">All Batches</option>
+                    </select>
+                    <select id="filter-assigned-semester" class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 outline-none">
+                        <option value="ALL">All Semesters</option>
+                        <option value="1">Sem 1</option>
+                        <option value="2">Sem 2</option>
+                        <option value="3">Sem 3</option>
+                        <option value="4">Sem 4</option>
+                        <option value="5">Sem 5</option>
+                        <option value="6">Sem 6</option>
+                    </select>
+                </div>
+            </div>
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-500 font-mono uppercase font-semibold border-b border-slate-200">
+                <tr>
+                    <th class="py-3 px-6">Batch</th>
+                    <th class="py-3 px-6">Semester</th>
+                    <th class="py-3 px-6">Subject Code</th>
+                    <th class="py-3 px-6">Subject Name</th>
+                    <th class="py-3 px-6 text-right">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="assigned-subjects-table-body" class="divide-y divide-slate-100">
+                <!-- Populated dynamically via JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- REFERENCE: Master Subject Catalog Pool -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Department Subject Catalog</h4>
+                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Master Subject Catalog Pool</h4>
             </div>
             <table class="w-full text-left text-xs">
                 <thead class="bg-slate-50 text-slate-500 font-mono uppercase font-semibold border-b border-slate-200">
                 <tr>
                     <th class="py-3 px-6">Subject Code</th>
                     <th class="py-3 px-6">Subject Name</th>
-                    <th class="py-3 px-6 text-right">Actions</th>
+                    <th class="py-3 px-6 text-right">Status</th>
                 </tr>
                 </thead>
                 <tbody id="subject-table-body" class="divide-y divide-slate-100">

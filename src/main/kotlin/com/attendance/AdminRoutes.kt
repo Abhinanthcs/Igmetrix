@@ -49,6 +49,19 @@ data class SubjectResponse(
     val code: String,
     val name: String
 )
+@Serializable
+data class AssignedSubjectDTO(
+    val id: Int,
+    val batch: String,
+    val semester: Int,
+    val subjectCode: String,
+    val subjectName: String
+)
+@Serializable
+data class SubjectDTO(
+    val code: String,
+    val name: String
+)
 
 @Serializable
 data class AssignSubjectRequest(
@@ -92,7 +105,7 @@ fun Application.configureAdminRoutes() {
                     call.respond(studentsList)
                 }
 
-                /// POST /api/admin/create-student
+                // POST /api/admin/create-student
                 post("/create-student") {
                     val principal = call.principal<JWTPrincipal>()
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
@@ -126,7 +139,6 @@ fun Application.configureAdminRoutes() {
                     call.respond(ApiResponse("Student removed."))
                 }
 
-
                 // GET /api/admin/batches
                 get("/batches") {
                     try {
@@ -138,7 +150,6 @@ fun Application.configureAdminRoutes() {
                             )
 
                         val batchList = transaction {
-                            // Include role condition directly in the JOIN clause to preserve LEFT JOIN behavior for 0-student batches
                             Batches
                                 .leftJoin(
                                     Users,
@@ -166,13 +177,13 @@ fun Application.configureAdminRoutes() {
                         )
                     }
                 }
+
                 // POST /api/admin/create-batch
                 post("/create-batch") {
                     try {
                         val req = call.receive<CreateBatchRequest>()
                         val batchName = "${req.startYear}-${req.endYear}"
 
-                        // Retrieve department from the authenticated admin's JWT token
                         val principal = call.principal<JWTPrincipal>()
                         val adminDepartment = principal?.payload?.getClaim("department")?.asString()
                             ?: return@post call.respond(
@@ -194,7 +205,7 @@ fun Application.configureAdminRoutes() {
                         transaction {
                             Batches.insert {
                                 it[batch] = batchName
-                                it[department] = adminDepartment // Populates required non-null department column
+                                it[department] = adminDepartment
                             }
                         }
 
@@ -212,20 +223,15 @@ fun Application.configureAdminRoutes() {
                 post("/delete-batch") {
                     val req = call.receive<DeleteBatchRequest>()
                     transaction {
-                        // 1. Find all student register numbers assigned to this batch
                         val studentRegNums = Users.selectAll()
                             .where { (Users.batch eq req.batch) and (Users.role eq "student") }
                             .map { it[Users.registerNumber] }
 
                         if (studentRegNums.isNotEmpty()) {
-                            // 2. Delete attendance history for students in this batch
                             AttendanceRecords.deleteWhere { registerNumber inList studentRegNums }
-
-                            // 3. Delete the student accounts
                             Users.deleteWhere { (batch eq req.batch) and (role eq "student") }
                         }
 
-                        // 4. Delete the batch entry
                         Batches.deleteWhere { batch eq req.batch }
                     }
                     call.respond(ApiResponse("Batch and all associated student records removed."))
@@ -353,35 +359,8 @@ fun Application.configureAdminRoutes() {
                     }
                     call.respond(ApiResponse("Semester rollover complete."))
                 }
-                post("/subjects") {
-                    try {
-                        val req = call.receive<CreateSubjectRequest>()
-                        val principal = call.principal<JWTPrincipal>()
-                        val adminDepartment = principal?.payload?.getClaim("department")?.asString()
-                            ?: return@post call.respond(
-                                HttpStatusCode.Unauthorized,
-                                ApiResponse("Department missing from token payload.")
-                            )
 
-                        transaction {
-                            Subjects.insert {
-                                it[code] = req.code.trim().uppercase()
-                                it[name] = req.name.trim()
-                                it[department] = adminDepartment
-                            }
-                        }
-
-                        call.respond(HttpStatusCode.Created, ApiResponse("Subject ${req.code} created."))
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to add subject.")
-                        )
-                    }
-                }
-
-// 2. Fetch department subject catalog
+                // GET /api/admin/subjects
                 get("/subjects") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
@@ -413,7 +392,41 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-// 3. Assign a subject from catalog to a batch + semester
+                // POST /api/admin/subjects
+                post("/subjects") {
+                    try {
+                        val principal = call.principal<JWTPrincipal>()
+                        val adminDepartment = principal?.payload?.getClaim("department")?.asString()
+                            ?: return@post call.respond(
+                                HttpStatusCode.Unauthorized,
+                                ApiResponse("Department missing from token payload.")
+                            )
+
+                        val req = call.receive<SubjectDTO>()
+
+                        val created = transaction {
+                            Subjects.insertIgnore {
+                                it[code] = req.code.trim().uppercase()
+                                it[name] = req.name.trim()
+                                it[department] = adminDepartment
+                            }.insertedCount > 0
+                        }
+
+                        if (created) {
+                            call.respond(HttpStatusCode.Created, ApiResponse("Subject added to catalog."))
+                        } else {
+                            call.respond(HttpStatusCode.Conflict, ApiResponse("Subject code already exists."))
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ApiResponse(e.message ?: "Failed to add subject.")
+                        )
+                    }
+                }
+
+                // POST /api/admin/batches/assign-subject
                 post("/batches/assign-subject") {
                     try {
                         val req = call.receive<AssignSubjectRequest>()
@@ -436,7 +449,70 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-// 4. Retrieve subjects assigned to a batch for a specific semester
+                // GET /api/admin/assigned-subjects (Renders Active Semester Mappings table)
+                get("/assigned-subjects") {
+                    try {
+                        val principal = call.principal<JWTPrincipal>()
+                        val adminDepartment = principal?.payload?.getClaim("department")?.asString()
+                            ?: return@get call.respond(
+                                HttpStatusCode.Unauthorized,
+                                ApiResponse("Department missing from token payload.")
+                            )
+
+                        val assignedList = transaction {
+                            BatchSubjects
+                                .innerJoin(Subjects, { BatchSubjects.subjectCode }, { Subjects.code })
+                                .selectAll()
+                                .where { Subjects.department eq adminDepartment }
+                                .map { row ->
+                                    AssignedSubjectDTO(
+                                        id = row[BatchSubjects.id],
+                                        batch = row[BatchSubjects.batch],
+                                        semester = row[BatchSubjects.semester],
+                                        subjectCode = row[BatchSubjects.subjectCode],
+                                        subjectName = row[Subjects.name]
+                                    )
+                                }
+                        }
+
+                        call.respond(HttpStatusCode.OK, assignedList)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ApiResponse(e.message ?: "Failed to fetch assigned subjects.")
+                        )
+                    }
+                }
+
+                // DELETE /api/admin/assigned-subjects/{id} (Unlinks a subject from semester)
+                delete("/assigned-subjects/{id}") {
+                    try {
+                        val assignmentId = call.parameters["id"]?.toIntOrNull()
+                            ?: return@delete call.respond(
+                                HttpStatusCode.BadRequest,
+                                ApiResponse("Valid assignment ID required.")
+                            )
+
+                        val deletedRows = transaction {
+                            BatchSubjects.deleteWhere { id eq assignmentId }
+                        }
+
+                        if (deletedRows > 0) {
+                            call.respond(HttpStatusCode.OK, ApiResponse("Subject unlinked successfully."))
+                        } else {
+                            call.respond(HttpStatusCode.NotFound, ApiResponse("Subject mapping not found."))
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ApiResponse(e.message ?: "Failed to unlink subject.")
+                        )
+                    }
+                }
+
+                // GET /api/admin/batches/{batch}/semester/{sem}/subjects
                 get("/batches/{batch}/semester/{sem}/subjects") {
                     try {
                         val batchName = call.parameters["batch"]
