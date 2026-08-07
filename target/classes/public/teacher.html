@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - Batch Attendance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-900 font-sans pb-12">
+
+<nav class="sticky top-0 z-50 bg-slate-900 text-white shadow-md border-b border-slate-800">
+    <div class="px-4 py-4 max-w-4xl mx-auto flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+            <h2 class="text-sm font-bold tracking-wider uppercase">Faculty Attendance Portal</h2>
+        </div>
+        <button onclick="logout()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-md text-slate-300 font-medium transition-colors">Logout</button>
+    </div>
+</nav>
+
+<main class="max-w-4xl mx-auto px-4 mt-8 space-y-6">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden p-6 space-y-6">
+        <div class="border-b border-slate-100 pb-4">
+            <h1 class="text-lg font-bold text-slate-800">Class Attendance Sheet</h1>
+            <p class="text-xs text-slate-500 mt-1">Select class details at top and toggle attendance status for all students.</p>
+        </div>
+
+        <div id="feedbackMessage" class="hidden p-3 text-xs font-semibold rounded-lg"></div>
+
+        <form id="bulkAttendanceForm" class="space-y-6">
+            <!-- Top Controls Grid (5 Columns including Class/Dept) -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Class / Dept</label>
+                    <select id="departmentSelect" onchange="loadStudentRoster()" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="BCA">BCA</option>
+                        <option value="BSc CS">BSc CS</option>
+                        <option value="BCom">BCom</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Subject Code</label>
+                    <input type="text" id="subjectCode" required placeholder="e.g. BCA301" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Subject Name</label>
+                    <input type="text" id="subjectName" required placeholder="e.g. Kotlin" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Date</label>
+                    <input type="date" id="date" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Hour / Period</label>
+                    <input type="number" id="hour" min="1" max="8" value="1" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+
+            <!-- Student Roster Header & Actions -->
+            <div class="flex justify-between items-center pt-2">
+                <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Student List</h3>
+                <div class="flex space-x-2">
+                    <button type="button" onclick="markAll('P')" class="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-semibold rounded transition-colors">
+                        Mark All Present
+                    </button>
+                    <button type="button" onclick="markAll('A')" class="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 text-xs font-semibold rounded transition-colors">
+                        Mark All Absent
+                    </button>
+                </div>
+            </div>
+
+            <!-- Student Roster Table -->
+            <div class="overflow-x-auto rounded-lg border border-slate-200">
+                <table class="w-full text-left text-sm text-slate-600">
+                    <thead class="bg-slate-100 text-xs text-slate-700 uppercase font-semibold">
+                    <tr>
+                        <th class="px-4 py-3">Register Number</th>
+                        <th class="px-4 py-3">Student Name</th>
+                        <th class="px-4 py-3 text-center">Status (P / A)</th>
+                    </tr>
+                    </thead>
+                    <tbody id="studentRosterBody" class="divide-y divide-slate-100 font-medium">
+                    <tr>
+                        <td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">Loading student roster...</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-6 py-2.5 rounded-lg shadow-sm transition-colors">
+                    Submit All Attendance
+                </button>
+            </div>
+        </form>
+    </div>
+</main>
+
+<script src="js/auth.js"></script>
+<script src="js/teacher.js"></script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance System Gateway</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            900: '#0F172A',
+                            50: '#F8FAFC'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col justify-between text-slate-900 font-sans">
+
+<!-- Header Grid -->
+<header class="bg-slate-900 text-white py-6 shadow-md">
+    <div class="container mx-auto px-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold tracking-wide">ATTENDANCE MANAGEMENT HIERARCHY</h1>
+        <span class="text-xs bg-slate-800 px-3 py-1 rounded text-slate-400 font-mono">v2.0 Stable</span>
+    </div>
+</header>
+
+<!-- Main Content Container -->
+<main class="container mx-auto px-4 py-16 flex-grow flex items-center justify-center">
+    <div class="max-w-xl w-full bg-white rounded-xl shadow-xl border border-slate-100 p-8 text-center">
+        <div class="mb-6 flex justify-center">
+            <div class="p-4 bg-emerald-50 rounded-full text-emerald-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+            </div>
+        </div>
+
+        <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">Unified Portal Gateway</h2>
+        <p class="text-slate-500 mb-8 max-w-sm mx-auto">Access secure institutional routes via automated cryptographic payload translation.</p>
+
+        <div class="space-y-4">
+            <a href="/login.html" class="block w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-3 px-4 rounded-lg shadow transitioned duration-150 ease-in-out">
+                Proceed to Secure Login
+            </a>
+        </div>
+
+        <!-- Pre-auth checking agent -->
+        <script type="module">
+            import { redirectBasedOnRole } from './js/auth.js';
+            const currentRole = localStorage.getItem('user_role');
+            const token = localStorage.getItem('jwt_token');
+            if (currentRole && token) {
+                const statusBanner = document.createElement('div');
+                statusBanner.className = 'mt-4 text-xs text-emerald-500 font-medium bg-emerald-50 p-2 rounded';
+                statusBanner.textContent = `Active user payload detected: [${currentRole.toUpperCase()}]. Auto-routing enabled.`;
+                document.querySelector('main div').appendChild(statusBanner);
+                setTimeout(() => redirectBasedOnRole(currentRole), 1200);
+            }
+        </script>
+    </div>
+</main>
+
+<!-- Footer System Status -->
+<footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+    <p>&copy; 2026 Institutional Attendance System. Authorized access parameters enforced.</p>
+</footer>
+
+</body>
+</html>

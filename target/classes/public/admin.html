@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Department Admin Console</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 font-sans text-slate-100 flex min-h-screen">
+
+<!-- Sidebar Navigation -->
+<aside class="w-64 bg-slate-950 border-r border-slate-800 p-6 flex flex-col justify-between">
+    <div class="space-y-6">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white">A</div>
+            <div>
+                <h2 class="font-bold text-sm tracking-wide text-white">Attendance Core</h2>
+                <span id="dept-badge" class="SYS_ADMIN text-[10px] bg-blue-500/10 text-blue-400 font-mono font-bold px-2 py-0.5 rounded border border-blue-500/20">DEPT_ADMIN</span>
+            </div>
+        </div>
+
+        <nav class="space-y-1">
+            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl bg-slate-800 text-white transition-all" data-tab="students">
+                <span>1. Student Registry</span>
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="corrections">
+                <span>2. Pending Logs</span>
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="lifecycle">
+                <span>3. Lifecycle Operations</span>
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="batches">
+                <span>4. Batch Manager</span>
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="teachers">
+                <span>5. Teacher Manager</span>
+            </button>
+            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="subjects">
+                <span>6. Subject Manager</span>
+            </button>
+        </nav>
+    </div>
+
+    <button id="logout-btn" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-xs font-bold transition-all">
+        Sign Out
+    </button>
+</aside>
+
+<!-- Main Area -->
+<main class="flex-1 bg-slate-50 text-slate-900 p-8 overflow-y-auto">
+
+    <div id="alert-banner" class="hidden mb-6 p-4 rounded-xl text-xs font-bold border transition-all duration-200"></div>
+
+    <!-- VIEW 1: STUDENT REGISTRY -->
+    <div id="view-students" class="admin-view space-y-6">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">Student Directory</h1>
+                <p class="text-xs text-slate-500 mt-1">Manage active student identities assigned to your department</p>
+            </div>
+            <button id="open-modal-btn" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-all shadow-md">
+                + Add Student
+            </button>
+        </div>
+
+        <!-- Search & Batch Filter Controls -->
+        <div class="flex flex-col sm:flex-row gap-3 justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex flex-1 gap-3 w-full">
+                <input type="text" id="student-search" placeholder="Search by name or reg number..."
+                       class="w-full max-w-xs px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10">
+
+                <select id="student-batch-filter" class="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none">
+                    <option value="ALL">All Batches</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <table class="w-full text-left border-collapse text-xs">
+                <thead class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-400">
+                <tr>
+                    <th class="py-4 px-6">Reg Number</th>
+                    <th class="py-4 px-6">Full Name</th>
+                    <th class="py-4 px-6">Dept / Batch</th>
+                    <th class="py-4 px-6">Attendance %</th>
+                    <th class="py-4 px-6 text-right">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="student-table-body" class="divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- VIEW 2: PENDING CORRECTIONS -->
+    <div id="view-corrections" class="admin-view hidden space-y-6">
+        <div>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Pending Teacher Logs</h1>
+            <p class="text-xs text-slate-500 mt-1">Unauthenticated or missing attendance intervals awaiting resolution</p>
+        </div>
+        <div id="corrections-container" class="space-y-3"></div>
+    </div>
+
+    <!-- VIEW 3: LIFECYCLE OPERATIONS -->
+    <div id="view-lifecycle" class="admin-view hidden space-y-6">
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-xl">
+            <h3 class="text-lg font-bold text-slate-900 mb-1">Semester Rollover Sequence</h3>
+            <p class="text-xs text-slate-500 mb-6">Clears attendance tracking logs for your active department and initializes a fresh cycle.</p>
+            <button id="rollover-btn" class="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition-all">
+                Execute Semester Rollover
+            </button>
+        </div>
+    </div>
+
+    <!-- VIEW 4: BATCH MANAGER -->
+    <div id="view-batches" class="admin-view hidden space-y-6">
+        <div>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Batch Management</h1>
+            <p class="text-xs text-slate-500 mt-1">Configure active academic batch years for your department</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-4">Create New Batch</h4>
+            <form id="create-batch-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Start Year</label>
+                    <input type="number" id="batch-start-year" required placeholder="2024" min="2000" max="2099" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">End Year</label>
+                    <input type="number" id="batch-end-year" required placeholder="2027" min="2000" max="2099" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
+                </div>
+                <div class="flex items-end">
+                    <button type="submit" class="w-full py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-all shadow-md">
+                        + Add Batch
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-500 font-mono uppercase font-semibold border-b border-slate-200">
+                <tr>
+                    <th class="py-3 px-6">Batch Interval</th>
+                    <th class="py-3 px-6 text-center">Enrolled Students</th>
+                    <th class="py-3 px-6 text-right">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="batch-table-body" class="divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- VIEW 5: TEACHER MANAGER -->
+    <div id="view-teachers" class="admin-view hidden space-y-6">
+        <div>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Teacher Management</h1>
+            <p class="text-xs text-slate-500 mt-1">Manage active department faculty accounts</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-4">Create New Teacher</h4>
+            <form id="create-teacher-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Teacher ID</label>
+                    <input type="text" id="teacher-id" required placeholder="e.g. TCH101" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Full Name</label>
+                    <input type="text" id="teacher-name" required placeholder="e.g. Dr. John Doe" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Date of Birth</label>
+                    <input type="date" id="teacher-dob" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Phone Number</label>
+                    <input type="tel" id="teacher-phone" placeholder="e.g. 9876543210" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
+                </div>
+                <div class="md:col-span-4 text-right mt-2">
+                    <button type="submit" class="px-5 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-all shadow-md">
+                        + Add Teacher
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-500 font-mono uppercase font-semibold border-b border-slate-200">
+                <tr>
+                    <th class="py-3 px-6">Teacher ID</th>
+                    <th class="py-3 px-6">Name</th>
+                    <th class="py-3 px-6">D.O.B</th>
+                    <th class="py-3 px-6">Phone</th>
+                    <th class="py-3 px-6 text-right">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="teacher-table-body" class="divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- VIEW 6: SUBJECT MANAGER -->
+    <div id="view-subjects" class="admin-view hidden space-y-6">
+        <div>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Subject & Semester Management</h1>
+            <p class="text-xs text-slate-500 mt-1">Configure subjects in your department catalog and assign them to specific batch semesters</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Card 1: Add Subject to Catalog -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-4">Add New Subject</h4>
+                <form id="create-subject-form" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject Code</label>
+                        <input type="text" id="subject-code" placeholder="e.g. CS101" required
+                               class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs uppercase font-mono outline-none text-slate-800 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject Name</label>
+                        <input type="text" id="subject-name" placeholder="e.g. Data Structures" required
+                               class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800 focus:outline-none">
+                    </div>
+                    <button type="submit" class="w-full py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-all shadow-md">
+                        + Add Subject to Catalog
+                    </button>
+                </form>
+            </div>
+
+            <!-- Card 2: Assign Subject to Batch & Semester -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-4">Assign Subject to Semester</h4>
+                <form id="assign-subject-form" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Select Batch</label>
+                        <select id="assign-batch-select" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none">
+                            <option value="" disabled selected>Select Batch</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Semester</label>
+                            <select id="assign-semester-select" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none">
+                                <option value="1">Semester 1</option>
+                                <option value="2">Semester 2</option>
+                                <option value="3">Semester 3</option>
+                                <option value="4">Semester 4</option>
+                                <option value="5">Semester 5</option>
+                                <option value="6">Semester 6</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject</label>
+                            <select id="assign-subject-select" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none">
+                                <option value="" disabled selected>Select Subject</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-all shadow-md">
+                        Link Subject to Semester
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Subject Catalog Overview Table -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Department Subject Catalog</h4>
+            </div>
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-500 font-mono uppercase font-semibold border-b border-slate-200">
+                <tr>
+                    <th class="py-3 px-6">Subject Code</th>
+                    <th class="py-3 px-6">Subject Name</th>
+                    <th class="py-3 px-6 text-right">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="subject-table-body" class="divide-y divide-slate-100">
+                <!-- Populated dynamically via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<!-- ENROLL STUDENT MODAL -->
+<div id="crud-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-100">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="font-bold text-slate-900 text-base">Enroll New Student</h3>
+            <button id="close-modal-btn" class="text-slate-400 hover:text-slate-600 font-mono font-bold text-lg">&times;</button>
+        </div>
+
+        <form id="create-student-form" class="p-6 space-y-4">
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Register Number</label>
+                <input type="text" id="modal-reg" placeholder="e.g. WM24BCAR013" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
+                <input type="text" id="modal-name" placeholder="e.g. Jane Doe" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Batch Year</label>
+                <select id="modal-batch" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+                    <option value="" disabled selected>Select Batch</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Date of Birth</label>
+                <input type="date" id="modal-dob" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Phone Number</label>
+                <input type="tel" id="modal-phone" placeholder="e.g. 9876543210" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+            </div>
+
+            <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button type="button" id="cancel-modal-btn" class="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs transition-all">Cancel</button>
+                <button type="submit" class="w-1/2 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-all shadow-md">Register Student</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- VIEW BATCH ROSTER MODAL -->
+<div id="roster-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden border border-slate-100">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+            <h3 id="roster-title" class="font-bold text-slate-900 text-base">Students in Batch</h3>
+            <button id="close-roster-btn" class="text-slate-400 hover:text-slate-600 font-mono font-bold text-lg">&times;</button>
+        </div>
+
+        <div class="p-6 max-h-96 overflow-y-auto">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-500 font-mono uppercase font-semibold border-b border-slate-200">
+                <tr>
+                    <th class="py-3 px-4">Reg Number</th>
+                    <th class="py-3 px-4">Name</th>
+                    <th class="py-3 px-4">Phone</th>
+                </tr>
+                </thead>
+                <tbody id="roster-table-body" class="divide-y divide-slate-100">
+                <!-- Populated dynamically via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- CONFIRMATION DIALOG MODAL -->
+<div id="confirm-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-slate-100 text-center space-y-4">
+        <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">!</div>
+        <div>
+            <h3 id="confirm-modal-title" class="text-base font-bold text-slate-900">Confirm Action</h3>
+            <p id="confirm-modal-msg" class="text-xs text-slate-500 mt-1 leading-relaxed">Are you sure you want to proceed?</p>
+        </div>
+        <div class="flex gap-3 pt-2">
+            <button id="confirm-cancel-btn" class="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs transition-all">Cancel</button>
+            <button id="confirm-proceed-btn" class="w-1/2 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition-all shadow-md">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/admin.js"></script>
+</body>
+</html>
