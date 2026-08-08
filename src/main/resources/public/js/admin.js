@@ -774,84 +774,90 @@ function confirmDeleteTeacher(teacherId) {
         onConfirm: async () => {
             try {
                 const res = await apiFetch('/api/admin/delete-teacher', 'POST', { teacherId });
-                showAlert(res.message || 'Teacher account removed.');
+                showAlert(res.message || 'Teacher removed.');
                 fetchTeachers();
             } catch (err) {
-                showAlert(`Error removing teacher account: ${err.message}`, true);
+                showAlert(`Error removing teacher: ${err.message}`, true);
             }
         }
     });
 }
 
-// --- ATTENDANCE LOGS AUDIT & EDIT FUNCTIONS ---
+// --- ATTENDANCE LOGS FETCHING & SORTING ---
 
 async function fetchAttendanceLogs() {
-    const date = document.getElementById('log-filter-date')?.value || '';
-    const batch = document.getElementById('log-filter-batch')?.value || 'ALL';
-    const semester = document.getElementById('log-filter-semester')?.value || 'ALL';
-    const subject = document.getElementById('log-filter-subject')?.value || 'ALL';
-    const hour = document.getElementById('log-filter-hour')?.value || 'ALL';
-    const status = document.getElementById('log-filter-status')?.value || 'ALL';
+    const dateVal = document.getElementById('log-filter-date')?.value;
+    const batchVal = document.getElementById('log-filter-batch')?.value;
+    const semVal = document.getElementById('log-filter-semester')?.value;
+    const subjectVal = document.getElementById('log-filter-subject')?.value;
+    const hourVal = document.getElementById('log-filter-hour')?.value;
+    const statusVal = document.getElementById('log-filter-status')?.value;
 
-    const params = new URLSearchParams();
-    if (date) params.append('date', date);
-    if (batch !== 'ALL') params.append('batch', batch);
-    if (semester !== 'ALL') params.append('semester', semester);
-    if (subject !== 'ALL') params.append('subjectCode', subject);
-    if (hour !== 'ALL') params.append('hour', hour);
-    if (status !== 'ALL') params.append('status', status);
-
-    const tbody = document.getElementById('attendance-logs-table-body');
-    if (!tbody) return;
+    const queryParams = new URLSearchParams();
+    if (dateVal) queryParams.append('date', dateVal);
+    if (batchVal && batchVal !== 'ALL') queryParams.append('batch', batchVal);
+    if (semVal && semVal !== 'ALL') queryParams.append('semester', semVal);
+    if (subjectVal && subjectVal !== 'ALL') queryParams.append('subjectCode', subjectVal);
+    if (hourVal && hourVal !== 'ALL') queryParams.append('hour', hourVal);
+    if (statusVal && statusVal !== 'ALL') queryParams.append('status', statusVal);
 
     try {
-        const logs = await apiFetch(`/api/admin/attendance-logs?${params.toString()}`, 'GET');
-
-        // Update Stat Cards safely
-        const total = logs.length;
-        const present = logs.filter(l => l.status === 'P' || l.status === 'PRESENT').length;
-        const absent = logs.filter(l => l.status === 'A' || l.status === 'ABSENT').length;
-        const rate = total > 0 ? ((present / total) * 100).toFixed(1) : 0;
-
-        const statTotal = document.getElementById('stat-total-logs');
-        const statPresent = document.getElementById('stat-present-logs');
-        const statAbsent = document.getElementById('stat-absent-logs');
-        const statRate = document.getElementById('stat-rate-logs');
-
-        if (statTotal) statTotal.textContent = total;
-        if (statPresent) statPresent.textContent = present;
-        if (statAbsent) statAbsent.textContent = absent;
-        if (statRate) statRate.textContent = `${rate}%`;
+        const logs = await apiFetch(`/api/admin/attendance-logs?${queryParams.toString()}`, 'GET');
+        const tbody = document.getElementById('attendance-logs-table-body');
+        if (!tbody) return;
 
         if (!logs || logs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-400 italic">No logs found matching selected criteria.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="py-4 px-6 text-center text-slate-400 italic">No attendance records found matching filters.</td></tr>`;
+            updateAttendanceSummaryStats([]);
             return;
         }
 
-        tbody.innerHTML = logs.map(l => {
-            const isPresent = l.status === 'P' || l.status === 'PRESENT';
-            const newStatus = isPresent ? 'A' : 'P';
+        // --- MULTI-LEVEL SORTING ---
+        // 1. Date (Descending - Newest first)
+        // 2. Hour / Period (Ascending - Hour 1, Hour 2...)
+        // 3. Register Number (Ascending - Alphabetical / Numerical)
+        logs.sort((a, b) => {
+            const dateComparison = new Date(b.date) - new Date(a.date);
+            if (dateComparison !== 0) return dateComparison;
+
+            const hourA = parseInt(String(a.hour || '').replace(/\D/g, '') || 0, 10);
+            const hourB = parseInt(String(b.hour || '').replace(/\D/g, '') || 0, 10);
+            if (hourA !== hourB) return hourA - hourB;
+
+            const regA = String(a.regNumber || a.registerNumber || a.studentId || '');
+            const regB = String(b.regNumber || b.registerNumber || b.studentId || '');
+            return regA.localeCompare(regB);
+        });
+
+        updateAttendanceSummaryStats(logs);
+
+        tbody.innerHTML = logs.map(log => {
+            const isPresent = log.status === 'PRESENT' || log.status === 'P';
+            const regNum = escapeHtml(log.regNumber || log.registerNumber || log.studentId || 'N/A');
+            const studentName = escapeHtml(log.studentName || log.name || 'N/A');
+            const subjCode = escapeHtml(log.subjectCode || 'N/A');
+            const hourText = `Hour ${log.hour || 1}`;
+            const logDate = escapeHtml(log.date || '');
+            const logId = log.id || log.attendanceId;
+
             return `
-                <tr class="hover:bg-slate-50 transition-colors">
-                    <td class="py-3 px-4 font-mono font-bold text-slate-800">${escapeHtml(l.registerNumber)}</td>
-                    <td class="py-3 px-4 font-medium text-slate-700">${escapeHtml(l.name || l.studentName || 'N/A')}</td>
-                    <td class="py-3 px-4 font-mono font-bold text-indigo-600">${escapeHtml(l.subjectCode || l.subject)}</td>
-                    <td class="py-3 px-4 text-center font-medium text-slate-600">Hour ${escapeHtml(String(l.hour))}</td>
-                    <td class="py-3 px-4 text-center font-mono text-slate-500">${escapeHtml(l.date)}</td>
-                    <td class="py-3 px-4 text-center">
-                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold font-mono ${
-                            isPresent ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 text-xs">
+                    <td class="py-3 px-6 font-mono font-bold text-slate-800">${regNum}</td>
+                    <td class="py-3 px-6 font-medium text-slate-700">${studentName}</td>
+                    <td class="py-3 px-6 font-mono font-bold text-indigo-600">${subjCode}</td>
+                    <td class="py-3 px-6 text-slate-600 font-medium">${hourText}</td>
+                    <td class="py-3 px-6 font-mono text-slate-500">${logDate}</td>
+                    <td class="py-3 px-6">
+                        <span class="px-2 py-1 rounded text-[10px] font-bold font-mono ${
+                            isPresent ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'
                         }">
                             ${isPresent ? 'PRESENT' : 'ABSENT'}
                         </span>
                     </td>
-                    <td class="py-3 px-4 text-right">
-                        <button onclick="updateLogStatus('${l.id}', '${newStatus}')" className="${
-                            isPresent
-                                ? 'px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-xs transition-all shadow-sm'
-                                : 'px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-all shadow-sm'
-                        }">
-                            Mark ${isPresent ? 'Absent' : 'Present'}
+                    <td class="py-3 px-6 text-right">
+                        <button onclick="toggleAttendanceStatus('${logId}', '${isPresent ? 'ABSENT' : 'PRESENT'}')"
+                            class="font-bold text-xs ${isPresent ? 'text-rose-500 hover:text-rose-700' : 'text-emerald-500 hover:text-emerald-700'}">
+                            ${isPresent ? 'Mark Absent' : 'Mark Present'}
                         </button>
                     </td>
                 </tr>
@@ -859,16 +865,46 @@ async function fetchAttendanceLogs() {
         }).join('');
     } catch (err) {
         console.error('Error fetching attendance logs:', err);
-        tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-red-500 font-medium">Failed to load attendance logs: ${escapeHtml(err.message)}</td></tr>`;
     }
 }
 
-async function updateLogStatus(logId, status) {
+function updateAttendanceSummaryStats(logs) {
+    const totalEl = document.getElementById('stat-total-logs');
+    const presentEl = document.getElementById('stat-present-count');
+    const absentEl = document.getElementById('stat-absent-count');
+    const rateEl = document.getElementById('stat-attendance-rate');
+
+    const total = logs.length;
+    const present = logs.filter(l => l.status === 'PRESENT' || l.status === 'P').length;
+    const absent = total - present;
+    const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+
+    if (totalEl) totalEl.textContent = total;
+    if (presentEl) presentEl.textContent = present;
+    if (absentEl) absentEl.textContent = absent;
+    if (rateEl) rateEl.textContent = `${rate}%`;
+}
+
+// Toggle status between PRESENT and ABSENT
+async function toggleAttendanceStatus(id, newStatus) {
     try {
-        const res = await apiFetch('/api/admin/attendance-logs/status', 'POST', { logId, status });
-        showAlert(res.message || 'Attendance status updated successfully.');
-        fetchAttendanceLogs();
+        await apiFetch(`/api/admin/attendance/${id}`, 'PUT', {
+            id: String(id),
+            status: newStatus
+        });
+        showAlert('Attendance status updated.');
+        await fetchAttendanceLogs();
     } catch (err) {
-        showAlert(`Failed to update status: ${err.message}`, true);
+        console.warn('PUT endpoint failed, attempting POST update...', err);
+        try {
+            await apiFetch('/api/admin/update-attendance', 'POST', {
+                id: String(id),
+                status: newStatus
+            });
+            showAlert('Attendance status updated.');
+            await fetchAttendanceLogs();
+        } catch (fallbackErr) {
+            showAlert(`Failed to update status: ${fallbackErr.message}`, true);
+        }
     }
 }

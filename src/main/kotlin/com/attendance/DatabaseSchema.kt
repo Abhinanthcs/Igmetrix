@@ -44,7 +44,7 @@ object AttendanceRecords : Table("attendance_records") {
     val department = varchar("department", 50)
     val date = date("date")
     val hour = integer("hour")
-    val status = varchar("status", 2)
+    val status = varchar("status", 10)
 
     override val primaryKey = PrimaryKey(id)
 }

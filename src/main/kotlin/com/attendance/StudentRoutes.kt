@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import java.time.LocalDate
 
 @Serializable
@@ -93,7 +94,7 @@ fun Route.configureStudentRoutes() {
             }
         }
 
-        // NEW: GET Attendance History for the Authenticated Student
+        // GET Attendance History for the Authenticated Student
         get("/student/history") {
             val principal = call.principal<JWTPrincipal>()
             val registerNum = principal?.payload?.getClaim("registerNumber")?.asString()
@@ -122,6 +123,8 @@ fun Route.configureStudentRoutes() {
 
             call.respond(HttpStatusCode.OK, history)
         }
+
+        // GET Attendance Summary
         get("/student/summary") {
             val principal = call.principal<JWTPrincipal>()
             val registerNum = principal?.payload?.getClaim("registerNumber")?.asString()
@@ -137,21 +140,28 @@ fun Route.configureStudentRoutes() {
                 }.toList()
 
                 val total = userRecords.size
-                val present = userRecords.count { it[AttendanceRecords.status] == "P" }
-                val absent = userRecords.count { it[AttendanceRecords.status] == "A" }
+                // Checked for both 'P' and 'PRESENT' string variations safely
+                val present = userRecords.count {
+                    val status = it[AttendanceRecords.status]
+                    status == "P" || status == "PRESENT"
+                }
+                val absent = total - present
 
-                val percentage = if (total > 0) {
+                val rawPercentage = if (total > 0) {
                     (present.toDouble() / total.toDouble()) * 100.0
                 } else {
                     0.0
                 }
+
+                // Safely format double value rounded to 2 decimal places
+                val roundedPercentage = Math.round(rawPercentage * 100.0) / 100.0
 
                 StudentSummaryResponse(
                     registerNumber = registerNum,
                     totalClasses = total,
                     presentCount = present,
                     absentCount = absent,
-                    attendancePercentage = String.format("%.2f", percentage).toDouble()
+                    attendancePercentage = roundedPercentage
                 )
             }
 

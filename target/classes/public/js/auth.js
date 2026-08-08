@@ -19,25 +19,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Reset tab styles
         [tabStudent, tabTeacher, tabAdmin].forEach(tab => {
-            tab.className = "flex-1 py-2 text-center text-slate-400 hover:text-slate-700 transition-all border-b-2 border-transparent";
+            if (tab) {
+                tab.className = "flex-1 py-2 text-center text-slate-400 hover:text-slate-700 transition-all border-b-2 border-transparent";
+            }
         });
 
         if (role === 'student') {
-            tabStudent.className = "flex-1 py-2 text-center text-slate-800 font-bold border-b-2 border-slate-800 transition-all";
+            if (tabStudent) tabStudent.className = "flex-1 py-2 text-center text-slate-800 font-bold border-b-2 border-slate-800 transition-all";
             title.textContent = "Student Login";
             labelField1.textContent = "Register Number";
             labelField2.textContent = "Date of Birth";
             field1.placeholder = "e.g. WM24BCAR013";
             field2.type = "date";
         } else if (role === 'teacher') {
-            tabTeacher.className = "flex-1 py-2 text-center text-slate-800 font-bold border-b-2 border-slate-800 transition-all";
+            if (tabTeacher) tabTeacher.className = "flex-1 py-2 text-center text-slate-800 font-bold border-b-2 border-slate-800 transition-all";
             title.textContent = "Teacher Login";
             labelField1.textContent = "Register / ID Number";
             labelField2.textContent = "Date of Birth";
             field1.placeholder = "e.g. TCH102";
             field2.type = "date";
         } else if (role === 'admin') {
-            tabAdmin.className = "flex-1 py-2 text-center text-slate-800 font-bold border-b-2 border-slate-800 transition-all";
+            if (tabAdmin) tabAdmin.className = "flex-1 py-2 text-center text-slate-800 font-bold border-b-2 border-slate-800 transition-all";
             title.textContent = "Department Admin Login";
             labelField1.textContent = "Department Code";
             labelField2.textContent = "Password";
@@ -59,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const val2 = field2.value;
 
         try {
-            let endpoint = '/login';
+            let endpoint = '/api/auth/student-login';
             let payload = { registerNumber: val1, dateOfBirth: val2 };
 
             if (currentRole === 'teacher') {
@@ -76,13 +78,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(payload)
             });
 
-            const data = await response.json();
+            // Safely extract text first to avoid syntax errors on non-JSON 404/500 responses
+            const text = await response.text();
+            let data = {};
+            if (text) {
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    throw new Error(`Server returned non-JSON response (${response.status})`);
+                }
+            }
 
             if (response.ok && data.token) {
                 localStorage.setItem('jwtToken', data.token);
 
                 if (currentRole === 'admin') {
-                    localStorage.setItem('adminDepartment', data.department);
+                    localStorage.setItem('adminDepartment', data.department || val1);
                     window.location.href = 'admin.html';
                 } else if (currentRole === 'teacher') {
                     window.location.href = 'teacher.html';
@@ -90,10 +101,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.location.href = 'student.html';
                 }
             } else {
-                showError(data.error || 'Login failed. Please check your credentials.');
+                showError(data.error || data.message || 'Login failed. Please check your credentials.');
             }
         } catch (err) {
-            showError('Unable to connect to server.');
+            console.error('Login request failed:', err);
+            showError('Unable to connect to server. Please ensure backend server is running.');
         }
     });
 

@@ -13,6 +13,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import org.jetbrains.exposed.sql.SortOrder
 
 // --- DTO DEFINITIONS ---
@@ -79,7 +80,8 @@ data class AttendanceLogResponse(
 
 @Serializable
 data class UpdateAttendanceStatusRequest(
-    val id: Int,
+    val id: Int? = null,
+    val attendanceId: String? = null,
     val status: String
 )
 
@@ -125,20 +127,28 @@ fun Application.configureAdminRoutes() {
                     val req = call.receive<CreateStudentRequest>()
 
                     try {
+                        val parsedDob = try {
+                            LocalDate.parse(req.dateOfBirth.trim())
+                        } catch (_: Exception) {
+                            LocalDate.parse(req.dateOfBirth.trim(), DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                        }
+
                         transaction {
                             Users.insert {
-                                it[registerNumber] = req.registerNumber
-                                it[name] = req.name
+                                it[registerNumber] = req.registerNumber.trim().uppercase()
+                                it[name] = req.name.trim()
                                 it[role] = "student"
                                 it[Users.department] = department
                                 it[batch] = req.batch
-                                it[dateOfBirth] = LocalDate.parse(req.dateOfBirth)
+                                it[dateOfBirth] = parsedDob
                                 it[phoneNumber] = req.phoneNumber
                             }
                         }
                         call.respond(HttpStatusCode.Created, ApiResponse("Student registered successfully."))
                     } catch (_: org.jetbrains.exposed.exceptions.ExposedSQLException) {
                         call.respond(HttpStatusCode.Conflict, ApiResponse("Student with this register number already exists."))
+                    } catch (_: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse("Invalid date format or student details."))
                     }
                 }
 
@@ -304,18 +314,26 @@ fun Application.configureAdminRoutes() {
                     val req = call.receive<CreateTeacherRequest>()
 
                     try {
+                        val parsedDob = try {
+                            LocalDate.parse(req.dateOfBirth.trim())
+                        } catch (_: Exception) {
+                            LocalDate.parse(req.dateOfBirth.trim(), DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                        }
+
                         transaction {
                             Teachers.insert {
                                 it[teacherId] = req.teacherId
                                 it[name] = req.name
                                 it[Teachers.department] = department
-                                it[dateOfBirth] = LocalDate.parse(req.dateOfBirth)
+                                it[dateOfBirth] = parsedDob
                                 it[phoneNumber] = req.phoneNumber
                             }
                         }
                         call.respond(HttpStatusCode.Created, ApiResponse("Teacher created successfully."))
                     } catch (_: org.jetbrains.exposed.exceptions.ExposedSQLException) {
                         call.respond(HttpStatusCode.Conflict, ApiResponse("Teacher with this ID already exists."))
+                    } catch (_: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse("Invalid date format or teacher details."))
                     }
                 }
 
@@ -613,7 +631,6 @@ fun Application.configureAdminRoutes() {
                                 query = query.andWhere { AttendanceRecords.status eq statusParam }
                             }
 
-                            // ORDER BY ENFORCED HERE TO PREVENT ROW MOVEMENTS ON UPDATE
                             query.orderBy(
                                 AttendanceRecords.registerNumber to SortOrder.ASC,
                                 AttendanceRecords.date to SortOrder.DESC,
@@ -641,53 +658,50 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // POST /api/admin/update-attendance (Matches admin.js toggle call)
-                post("/update-attendance") {
+                // PUT /api/admin/attendance/{id} (Handles RESTful update calls from frontend)
+                put("/attendance/{id}") {
                     try {
+                        val idParam = call.parameters["id"]?.toIntOrNull()
+                            ?: return@put call.respond(HttpStatusCode.BadRequest, ApiResponse("Valid log ID required."))
                         val req = call.receive<UpdateAttendanceStatusRequest>()
 
-                        val updatedRows = transaction {
-                            AttendanceRecords.update({ AttendanceRecords.id eq req.id }) {
+                        val updated = transaction {
+                            AttendanceRecords.update({ AttendanceRecords.id eq idParam }) {
                                 it[status] = req.status
                             }
-                        }
+                        } > 0
 
-                        if (updatedRows > 0) {
+                        if (updated) {
                             call.respond(HttpStatusCode.OK, ApiResponse("Attendance status updated successfully."))
                         } else {
-                            call.respond(HttpStatusCode.NotFound, ApiResponse("Record not found."))
+                            call.respond(HttpStatusCode.NotFound, ApiResponse("Attendance log not found."))
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to update attendance status.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse("Failed to update status."))
                     }
                 }
 
-                // PATCH /api/admin/attendance-logs/update
-                patch("/attendance-logs/update") {
+                // POST /api/admin/update-attendance
+                post("/update-attendance") {
                     try {
                         val req = call.receive<UpdateAttendanceStatusRequest>()
+                        val logId = req.id ?: return@post call.respond(HttpStatusCode.BadRequest, ApiResponse("Log ID is required."))
 
-                        val updatedRows = transaction {
-                            AttendanceRecords.update({ AttendanceRecords.id eq req.id }) {
+                        val updated = transaction {
+                            AttendanceRecords.update({ AttendanceRecords.id eq logId }) {
                                 it[status] = req.status
                             }
-                        }
+                        } > 0
 
-                        if (updatedRows > 0) {
-                            call.respond(HttpStatusCode.OK, ApiResponse("Attendance status updated."))
+                        if (updated) {
+                            call.respond(HttpStatusCode.OK, ApiResponse("Attendance updated successfully."))
                         } else {
-                            call.respond(HttpStatusCode.NotFound, ApiResponse("Record not found."))
+                            call.respond(HttpStatusCode.NotFound, ApiResponse("Attendance record not found."))
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to update attendance status.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse("Failed to update attendance status."))
                     }
                 }
             }

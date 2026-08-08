@@ -39,6 +39,12 @@
 <!-- Main Container Layout -->
 <main class="dashboard-container max-w-4xl mx-auto px-4 mt-6 space-y-6">
 
+    <!-- Global Eligibility / Threshold Warning Alert Banner (Hidden by default) -->
+    <div id="eligibilityAlert" class="hidden p-4 rounded-xl text-xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-700 flex items-center justify-between">
+        <span id="eligibilityText">Warning: Overall attendance is below the 75% minimum eligibility requirement.</span>
+        <span class="px-2 py-0.5 bg-amber-500/20 rounded font-mono text-[10px]">ATTENTION</span>
+    </div>
+
     <!-- Summary Metrics Cards Grid -->
     <section class="summary-cards grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
         <div class="card bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
@@ -63,10 +69,32 @@
         </div>
     </section>
 
+    <!-- Subject-Wise Attendance Progress Section -->
+    <section class="subject-breakdown-section bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+            <h3 class="text-sm font-bold text-slate-900 tracking-wide uppercase">Subject-Wise Breakdown</h3>
+            <span class="text-xs text-slate-400 font-medium">Target: 75%</span>
+        </div>
+        <div id="subjectBreakdownContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <p class="text-xs text-slate-400 italic col-span-2">Loading subject progress...</p>
+        </div>
+    </section>
+
+    <!-- Attendance Bunk & Attendance Goal Simulator Section -->
+    <section class="bunk-calculator-section bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <h3 class="text-sm font-bold text-slate-900 tracking-wide uppercase">Attendance Target Simulator</h3>
+        <div id="calculatorAdvice" class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 leading-relaxed">
+            Calculating attendance projection status...
+        </div>
+    </section>
+
     <!-- History Data Table -->
     <section class="history-section bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="p-4 border-b border-slate-100">
+        <div class="p-4 border-b border-slate-100 flex justify-between items-center">
             <h3 class="text-sm font-bold text-slate-900 tracking-wide uppercase">Attendance History</h3>
+            <div class="flex items-center space-x-2">
+                <input type="date" id="historyDateFilter" class="text-xs border border-slate-200 rounded-md px-2 py-1 text-slate-600 focus:outline-none focus:border-indigo-500">
+            </div>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm text-slate-600">
