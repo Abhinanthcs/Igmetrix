@@ -4,7 +4,9 @@ const TOKEN_KEY = 'jwtToken';
 // In-memory cache for client-side search & filtering
 let allStudentsCache = [];
 let assignedSubjectsCache = []; // Global cache for active semester mappings
+let currentAttendanceLogs = [];
 
+window.currentAttendanceLogs = window.currentAttendanceLogs || [];
 /**
  * Utility to escape HTML and prevent XSS injections
  */
@@ -786,7 +788,11 @@ function confirmDeleteTeacher(teacherId) {
 // --- ATTENDANCE LOGS FETCHING & SORTING ---
 
 async function fetchAttendanceLogs() {
+    const dateMode = document.getElementById('log-date-mode')?.value || 'ALL';
     const dateVal = document.getElementById('log-filter-date')?.value;
+    const startDateVal = document.getElementById('log-filter-start-date')?.value;
+    const endDateVal = document.getElementById('log-filter-end-date')?.value;
+
     const batchVal = document.getElementById('log-filter-batch')?.value;
     const semVal = document.getElementById('log-filter-semester')?.value;
     const subjectVal = document.getElementById('log-filter-subject')?.value;
@@ -794,7 +800,14 @@ async function fetchAttendanceLogs() {
     const statusVal = document.getElementById('log-filter-status')?.value;
 
     const queryParams = new URLSearchParams();
-    if (dateVal) queryParams.append('date', dateVal);
+
+    if (dateMode === 'SPECIFIC' && dateVal) {
+        queryParams.append('date', dateVal);
+    } else if (dateMode === 'RANGE') {
+        if (startDateVal) queryParams.append('startDate', startDateVal);
+        if (endDateVal) queryParams.append('endDate', endDateVal);
+    }
+
     if (batchVal && batchVal !== 'ALL') queryParams.append('batch', batchVal);
     if (semVal && semVal !== 'ALL') queryParams.append('semester', semVal);
     if (subjectVal && subjectVal !== 'ALL') queryParams.append('subjectCode', subjectVal);
@@ -803,69 +816,110 @@ async function fetchAttendanceLogs() {
 
     try {
         const logs = await apiFetch(`/api/admin/attendance-logs?${queryParams.toString()}`, 'GET');
+        window.currentAttendanceLogs = logs || [];
+
         const tbody = document.getElementById('attendance-logs-table-body');
         if (!tbody) return;
 
         if (!logs || logs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="py-4 px-6 text-center text-slate-400 italic">No attendance records found matching filters.</td></tr>`;
-            updateAttendanceSummaryStats([]);
+            tbody.innerHTML = `<tr><td colspan="100%" class="py-4 px-6 text-center text-slate-400 italic">No attendance records found matching filters.</td></tr>`;
+            if (typeof updateAttendanceSummaryStats === 'function') {
+                updateAttendanceSummaryStats([]);
+            }
             return;
         }
 
-        // --- MULTI-LEVEL SORTING ---
-        // 1. Date (Descending - Newest first)
-        // 2. Hour / Period (Ascending - Hour 1, Hour 2...)
-        // 3. Register Number (Ascending - Alphabetical / Numerical)
-        logs.sort((a, b) => {
-            const dateComparison = new Date(b.date) - new Date(a.date);
-            if (dateComparison !== 0) return dateComparison;
+        if (typeof updateAttendanceSummaryStats === 'function') {
+            updateAttendanceSummaryStats(logs);
+        }
 
-            const hourA = parseInt(String(a.hour || '').replace(/\D/g, '') || 0, 10);
-            const hourB = parseInt(String(b.hour || '').replace(/\D/g, '') || 0, 10);
-            if (hourA !== hourB) return hourA - hourB;
+        renderPivotAttendanceTable(logs);
 
-            const regA = String(a.regNumber || a.registerNumber || a.studentId || '');
-            const regB = String(b.regNumber || b.registerNumber || b.studentId || '');
-            return regA.localeCompare(regB);
-        });
-
-        updateAttendanceSummaryStats(logs);
-
-        tbody.innerHTML = logs.map(log => {
-            const isPresent = log.status === 'PRESENT' || log.status === 'P';
-            const regNum = escapeHtml(log.regNumber || log.registerNumber || log.studentId || 'N/A');
-            const studentName = escapeHtml(log.studentName || log.name || 'N/A');
-            const subjCode = escapeHtml(log.subjectCode || 'N/A');
-            const hourText = `Hour ${log.hour || 1}`;
-            const logDate = escapeHtml(log.date || '');
-            const logId = log.id || log.attendanceId;
-
-            return `
-                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 text-xs">
-                    <td class="py-3 px-6 font-mono font-bold text-slate-800">${regNum}</td>
-                    <td class="py-3 px-6 font-medium text-slate-700">${studentName}</td>
-                    <td class="py-3 px-6 font-mono font-bold text-indigo-600">${subjCode}</td>
-                    <td class="py-3 px-6 text-slate-600 font-medium">${hourText}</td>
-                    <td class="py-3 px-6 font-mono text-slate-500">${logDate}</td>
-                    <td class="py-3 px-6">
-                        <span class="px-2 py-1 rounded text-[10px] font-bold font-mono ${
-                            isPresent ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'
-                        }">
-                            ${isPresent ? 'PRESENT' : 'ABSENT'}
-                        </span>
-                    </td>
-                    <td class="py-3 px-6 text-right">
-                        <button onclick="toggleAttendanceStatus('${logId}', '${isPresent ? 'ABSENT' : 'PRESENT'}')"
-                            class="font-bold text-xs ${isPresent ? 'text-rose-500 hover:text-rose-700' : 'text-emerald-500 hover:text-emerald-700'}">
-                            ${isPresent ? 'Mark Absent' : 'Mark Present'}
-                        </button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
     } catch (err) {
         console.error('Error fetching attendance logs:', err);
     }
+}
+
+function renderPivotAttendanceTable(logs) {
+    const tbody = document.getElementById('attendance-logs-table-body');
+    const table = tbody?.closest('table');
+    if (!tbody || !table) return;
+
+    let thead = table.querySelector('thead');
+    if (!thead) {
+        thead = document.createElement('thead');
+        table.insertBefore(thead, tbody);
+    }
+
+    const studentsMap = new Map();
+    const sessionsMap = new Map();
+
+    logs.forEach(log => {
+        const reg = log.regNumber || log.registerNumber || log.studentId || 'N/A';
+        const name = log.studentName || log.name || 'N/A';
+        const date = log.date || 'N/A';
+        const hour = log.hour || 1;
+        const subj = log.subjectCode || 'SUBJ';
+
+        const sessionKey = `${date}_H${hour}_${subj}`;
+        const sessionHeader = `(H${hour}/${subj})<br><span class="text-[10px] text-slate-400 font-mono font-normal">${date}</span>`;
+
+        if (!studentsMap.has(reg)) {
+            studentsMap.set(reg, { reg, name, attendance: {} });
+        }
+        if (!sessionsMap.has(sessionKey)) {
+            sessionsMap.set(sessionKey, { header: sessionHeader, rawDate: date, rawHour: hour });
+        }
+
+        const isPresent = log.status === 'PRESENT' || log.status === 'P';
+        studentsMap.get(reg).attendance[sessionKey] = {
+            status: isPresent ? 'P' : 'A',
+            logId: log.id || log.attendanceId
+        };
+    });
+
+    const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
+        const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
+        if (dateComp !== 0) return dateComp;
+        return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
+    });
+
+    const sortedStudents = Array.from(studentsMap.values()).sort((a, b) => a.reg.localeCompare(b.reg));
+
+    thead.innerHTML = `
+        <tr class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-500 text-xs">
+            <th class="py-3 px-4 text-left">Register No</th>
+            <th class="py-3 px-4 text-left">Student Name</th>
+            ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[100px]">${session.header}</th>`).join('')}
+        </tr>
+    `;
+
+    tbody.innerHTML = sortedStudents.map(student => `
+        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 text-xs font-medium">
+            <td class="py-3 px-4 font-mono font-bold text-slate-800">${escapeHtml(student.reg)}</td>
+            <td class="py-3 px-4 text-slate-700">${escapeHtml(student.name)}</td>
+            ${sortedSessions.map(([key, _]) => {
+                const record = student.attendance[key];
+                if (!record) {
+                    return `<td class="py-3 px-4 text-center font-mono text-slate-300">-</td>`;
+                }
+
+                const isP = record.status === 'P';
+                const nextStatus = isP ? 'ABSENT' : 'PRESENT';
+
+                return `
+                    <td class="py-3 px-4 text-center font-mono font-bold">
+                        <button onclick="toggleAttendanceStatus('${record.logId}', '${nextStatus}')"
+                                class="px-2.5 py-1 rounded transition-all cursor-pointer ${
+                                    isP ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20' : 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20'
+                                }">
+                            ${record.status}
+                        </button>
+                    </td>
+                `;
+            }).join('')}
+        </tr>
+    `).join('');
 }
 
 function updateAttendanceSummaryStats(logs) {
@@ -908,3 +962,80 @@ async function toggleAttendanceStatus(id, newStatus) {
         }
     }
 }
+
+// --- EXPORT TO CSV ---
+function exportAdminLogsCSV() {
+    const logs = window.currentAttendanceLogs;
+    if (!logs || logs.length === 0) {
+        alert("No attendance logs available to export.");
+        return;
+    }
+
+    const studentsMap = new Map();
+    const sessionsMap = new Map();
+
+    logs.forEach(log => {
+        const reg = log.regNumber || log.registerNumber || log.studentId || 'N/A';
+        const name = log.studentName || log.name || 'N/A';
+        const date = log.date || 'N/A';
+        const hour = log.hour || 1;
+        const subj = log.subjectCode || 'SUBJ';
+
+        const sessionKey = `${date}_H${hour}_${subj}`;
+        const csvHeaderLabel = `(H${hour}/${subj}) ${date}`;
+
+        if (!studentsMap.has(reg)) {
+            studentsMap.set(reg, { reg, name, attendance: {} });
+        }
+        if (!sessionsMap.has(sessionKey)) {
+            sessionsMap.set(sessionKey, { label: csvHeaderLabel, rawDate: date, rawHour: hour });
+        }
+
+        const isPresent = log.status === 'PRESENT' || log.status === 'P';
+        studentsMap.get(reg).attendance[sessionKey] = isPresent ? 'P' : 'A';
+    });
+
+    const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
+        const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
+        if (dateComp !== 0) return dateComp;
+        return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
+    });
+
+    const sortedStudents = Array.from(studentsMap.values()).sort((a, b) => a.reg.localeCompare(b.reg));
+
+    let csvContent = `Register No,Student Name,` + sortedSessions.map(([_, s]) => `"${s.label}"`).join(',') + `\n`;
+
+    sortedStudents.forEach(student => {
+        const row = [
+            `"${student.reg}"`,
+            `"${student.name}"`,
+            ...sortedSessions.map(([key, _]) => `"${student.attendance[key] || '-'}"`)
+        ];
+        csvContent += row.join(',') + `\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Attendance_Matrix_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+function downloadCSV(filename, headers, rows) {
+    const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+window.exportAdminLogsCSV = exportAdminLogsCSV;

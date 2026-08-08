@@ -227,3 +227,42 @@ function logout() {
     localStorage.removeItem('jwtToken');
     window.location.href = 'login.html';
 }
+
+// --- EXPORT TO CSV ---
+function exportStudentHistoryCSV() {
+    if (!allHistoryCache || allHistoryCache.length === 0) {
+        alert('No attendance history available to export.');
+        return;
+    }
+
+    const regNum = document.getElementById('regNum')?.innerText || 'Student';
+    const headers = ['Log ID', 'Subject Code', 'Subject Name', 'Date', 'Hour', 'Status'];
+
+    const rows = allHistoryCache.map(item => [
+        item.id,
+        item.subjectCode || 'N/A',
+        item.subjectName || 'N/A',
+        item.date,
+        item.hour,
+        (item.status === 'P' || item.status === 'PRESENT') ? 'PRESENT' : 'ABSENT'
+    ]);
+
+    const filename = `Attendance_History_${regNum}_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadCSV(filename, headers, rows);
+}
+
+function downloadCSV(filename, headers, rows) {
+    const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
