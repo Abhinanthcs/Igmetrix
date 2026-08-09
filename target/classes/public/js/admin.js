@@ -108,6 +108,12 @@ function initNavigation() {
             }
         });
     });
+
+    // Automatically trigger click on the Attendance Logs tab on load
+    const defaultTabBtn = document.querySelector('.admin-tab-btn[data-tab="attendance-logs"]');
+    if (defaultTabBtn) {
+        defaultTabBtn.click();
+    }
 }
 
 // Modal Toggle Logic

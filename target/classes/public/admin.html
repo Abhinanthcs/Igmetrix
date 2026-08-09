@@ -44,6 +44,7 @@
 <!-- Sidebar Navigation -->
 <aside class="w-64 bg-slate-950 border-r border-slate-800 p-6 flex flex-col justify-between">
     <div class="space-y-6">
+        <!-- Brand Header -->
         <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white">A</div>
             <div>
@@ -52,31 +53,43 @@
             </div>
         </div>
 
-        <nav class="space-y-1">
-            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl bg-slate-800 text-white transition-all" data-tab="students">
-                <span>1. Student Registry</span>
-            </button>
-            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="corrections">
-                <span>2. Pending Logs</span>
-            </button>
-            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="lifecycle">
-                <span>3. Lifecycle Operations</span>
-            </button>
-            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="batches">
-                <span>4. Batch Manager</span>
-            </button>
-            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="teachers">
-                <span>5. Teacher Manager</span>
-            </button>
-            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="subjects">
-                <span>6. Subject Manager</span>
-            </button>
-            <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="attendance-logs">
-                <span>7. Attendance Logs</span>
-            </button>
-        </nav>
+        <!-- Category: Operations -->
+        <div>
+            <p class="px-1 mb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase">Daily Operations</p>
+            <nav class="space-y-1">
+                <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="attendance-logs">
+                    <span>Attendance Logs</span>
+                </button>
+                <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="corrections">
+                    <span>Pending Logs</span>
+                </button>
+                <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="lifecycle">
+                    <span>Lifecycle Operations</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- Category: Management -->
+        <div>
+            <p class="px-1 mb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase">Management</p>
+            <nav class="space-y-1">
+                <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="students">
+                    <span>Student Registry</span>
+                </button>
+                <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="batches">
+                    <span>Batch Manager</span>
+                </button>
+                <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="subjects">
+                    <span>Subject Manager</span>
+                </button>
+                <button class="admin-tab-btn w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all" data-tab="teachers">
+                    <span>Teacher Manager</span>
+                </button>
+            </nav>
+        </div>
     </div>
 
+    <!-- Sign Out Button -->
     <button id="logout-btn" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-xs font-bold transition-all">
         Sign Out
     </button>
