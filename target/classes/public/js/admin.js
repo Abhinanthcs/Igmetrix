@@ -829,9 +829,9 @@ async function fetchAttendanceLogs() {
             return;
         }
 
-        if (typeof updateAttendanceSummaryStats === 'function') {
-            updateAttendanceSummaryStats(logs);
-        }
+//        if (typeof updateAttendanceSummaryStats === 'function') {
+//            updateAttendanceSummaryStats(logs);
+//        }
 
         renderPivotAttendanceTable(logs);
 
