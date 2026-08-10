@@ -92,3 +92,19 @@ object BatchSubjects : Table("batch_subjects") {
         uniqueIndex("unique_batch_sem_subject", batch, semester, subjectCode)
     }
 }
+
+object Timetables : Table("timetables") {
+    val id = integer("id").autoIncrement()
+    val batch = varchar("batch", 30)
+    val semester = integer("semester")
+    val day = varchar("day", 15) // e.g. MONDAY, TUESDAY
+    val hour = integer("hour") // e.g. 1 to 5
+    val subjectCode = varchar("subject_code", 30).nullable()
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        // Enforce unique timetable slot per batch, semester, day, and hour
+        uniqueIndex(batch, semester, day, hour)
+    }
+}

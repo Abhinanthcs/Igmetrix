@@ -7,6 +7,7 @@ let assignedSubjectsCache = []; // Global cache for active semester mappings
 let currentAttendanceLogs = [];
 
 window.currentAttendanceLogs = window.currentAttendanceLogs || [];
+
 /**
  * Utility to escape HTML and prevent XSS injections
  */
@@ -72,6 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initFilterListeners();
     initFormListeners();
     loadDashboardData();
+    initTimetable();
 });
 
 function initDeptBadge() {
@@ -105,6 +107,12 @@ function initNavigation() {
 
             if (targetTab === 'attendance-logs') {
                 populateSubjectFilter().then(() => fetchAttendanceLogs());
+            }
+
+            if (targetTab === 'subjects' || targetTab === 'subject-manager') {
+                if (typeof window.fetchWeeklyMatrix === "function") {
+                    window.fetchWeeklyMatrix();
+                }
             }
         });
     });
@@ -156,6 +164,10 @@ function initFilterListeners() {
     document.getElementById('log-filter-subject')?.addEventListener('change', fetchAttendanceLogs);
     document.getElementById('log-filter-hour')?.addEventListener('change', fetchAttendanceLogs);
     document.getElementById('log-filter-status')?.addEventListener('change', fetchAttendanceLogs);
+
+    // Overview Matrix Timetable Listeners
+    document.getElementById('overview-tt-batch-select')?.addEventListener('change', fetchWeeklyMatrix);
+    document.getElementById('overview-tt-semester-select')?.addEventListener('change', fetchWeeklyMatrix);
 }
 
 // Global Alerts
@@ -437,40 +449,9 @@ async function fetchBatches() {
             }
         }
 
-        // Populate dropdowns for Batch Filters and Modals/Forms
-        const filterSelect = document.getElementById('student-batch-filter');
-        const modalSelect = document.getElementById('modal-batch');
-        const assignBatchSelect = document.getElementById('assign-batch-select');
-        const filterAssignedBatchSelect = document.getElementById('filter-assigned-batch');
-        const logFilterBatchSelect = document.getElementById('log-filter-batch');
+        // Populate dropdowns for Batch Filters, Modals/Forms, Timetable and Overview
+        populateBatchDropdowns(batches || []);
 
-        const batchOptions = (batches || []).map(b => `<option value="${escapeHtml(b.batch)}">${escapeHtml(b.batch)}</option>`).join('');
-
-        if (filterSelect) {
-            const currentVal = filterSelect.value;
-            filterSelect.innerHTML = '<option value="ALL">All Batches</option>' + batchOptions;
-            filterSelect.value = currentVal || 'ALL';
-        }
-
-        if (filterAssignedBatchSelect) {
-            const currentVal = filterAssignedBatchSelect.value;
-            filterAssignedBatchSelect.innerHTML = '<option value="ALL">All Batches</option>' + batchOptions;
-            filterAssignedBatchSelect.value = currentVal || 'ALL';
-        }
-
-        if (logFilterBatchSelect) {
-            const currentVal = logFilterBatchSelect.value;
-            logFilterBatchSelect.innerHTML = '<option value="ALL">All Batches</option>' + batchOptions;
-            logFilterBatchSelect.value = currentVal || 'ALL';
-        }
-
-        if (modalSelect) {
-            modalSelect.innerHTML = '<option value="" disabled selected>Select Batch</option>' + batchOptions;
-        }
-
-        if (assignBatchSelect) {
-            assignBatchSelect.innerHTML = '<option value="" disabled selected>Select Batch</option>' + batchOptions;
-        }
     } catch (err) {
         console.error('Error fetching batches:', err);
     }
@@ -835,10 +816,6 @@ async function fetchAttendanceLogs() {
             return;
         }
 
-//        if (typeof updateAttendanceSummaryStats === 'function') {
-//            updateAttendanceSummaryStats(logs);
-//        }
-
         renderPivotAttendanceTable(logs);
 
     } catch (err) {
@@ -877,7 +854,6 @@ function renderPivotAttendanceTable(logs) {
             sessionsMap.set(sessionKey, { header: sessionHeader, rawDate: date, rawHour: hour });
         }
 
-        // Map status: P = Present, L = Late, A = Absent
         let statusTag = 'A';
         if (log.status === 'PRESENT' || log.status === 'P') statusTag = 'P';
         else if (log.status === 'LATE' || log.status === 'L') statusTag = 'L';
@@ -916,9 +892,8 @@ function renderPivotAttendanceTable(logs) {
 
                 const current = record.status;
 
-                // Cycle order: P -> A -> L -> P
                 let nextStatus = 'PRESENT';
-                let btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20'; // Default A
+                let btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
 
                 if (current === 'P') {
                     nextStatus = 'ABSENT';
@@ -1045,6 +1020,7 @@ function exportAdminLogsCSV() {
     link.click();
     document.body.removeChild(link);
 }
+
 function downloadCSV(filename, headers, rows) {
     const csvContent = [
         headers.join(','),
@@ -1060,4 +1036,334 @@ function downloadCSV(filename, headers, rows) {
     link.click();
     document.body.removeChild(link);
 }
+
+// --- TIMETABLE MANAGEMENT & ADMIN UTILITIES ---
+
+/**
+ * Helper function to retrieve mapped subjects for currently selected Batch and Semester
+ */
+function getMappedSubjectsForSelectedBatchAndSem() {
+    const batchSelect = document.getElementById("tt-batch-select") || document.getElementById("batchSelect") || document.getElementById("timetable-batch-select");
+    const semesterSelect = document.getElementById("tt-semester-select") || document.getElementById("semesterSelect") || document.getElementById("timetable-semester-select");
+
+    const batch = batchSelect?.value;
+    const semester = semesterSelect?.value;
+
+    if (!batch || !semester || batch === "Select Batch") {
+        return [];
+    }
+
+    // Filter assignedSubjectsCache for matching batch & semester
+    const cache = window.assignedSubjectsCache || (typeof assignedSubjectsCache !== 'undefined' ? assignedSubjectsCache : []);
+    return cache.filter(item => {
+        const itemSem = String(item.semester).replace(/[^0-9]/g, '');
+        const selSem = String(semester).replace(/[^0-9]/g, '');
+        return String(item.batch) === String(batch) && itemSem === selSem;
+    });
+}
+
+// Renders default 5 period slots as dropdowns into the table
+function renderTimetableSlots() {
+    const tbody = document.getElementById("timetable-slots-body");
+    if (!tbody) return;
+
+    const subjects = getMappedSubjectsForSelectedBatchAndSem();
+
+    let optionsHtml = '<option value="">-- Select Subject --</option>';
+    if (subjects.length > 0) {
+        optionsHtml += subjects.map(s =>
+            `<option value="${s.subjectCode}">${s.subjectCode} - ${s.subjectName}</option>`
+        ).join('');
+    } else {
+        optionsHtml += `<option value="" disabled>No mapped subjects found for this batch/semester</option>`;
+    }
+
+    let html = '';
+    for (let hour = 1; hour <= 5; hour++) {
+        html += `
+            <tr class="hover:bg-slate-50 transition-colors">
+                <td class="py-3 px-6 font-mono font-bold text-slate-700">Hour ${hour}</td>
+                <td class="py-3 px-6">
+                    <select id="hour${hour}Input"
+                            data-hour="${hour}"
+                            class="timetable-slot-input w-full max-w-xs px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono uppercase text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer">
+                        ${optionsHtml}
+                    </select>
+                </td>
+            </tr>
+        `;
+    }
+    tbody.innerHTML = html;
+}
+
+function initTimetable() {
+    const batchSelect = document.getElementById("tt-batch-select") || document.getElementById("batchSelect") || document.getElementById("timetable-batch-select");
+    const semesterSelect = document.getElementById("tt-semester-select") || document.getElementById("semesterSelect") || document.getElementById("timetable-semester-select");
+    const daySelect = document.getElementById("tt-day-select") || document.getElementById("daySelect") || document.getElementById("timetable-day-select");
+    const saveBtn = document.getElementById("saveTimetableBtn") || document.getElementById("save-timetable-btn");
+
+    renderTimetableSlots();
+
+    const checkAndTriggerFetch = () => {
+        const batch = batchSelect?.value;
+        const sem = semesterSelect?.value;
+        const day = daySelect?.value;
+
+        // Re-render dropdown options whenever Batch/Semester changes
+        renderTimetableSlots();
+
+        if (batch && batch !== "" && batch !== "Select Batch" && sem && day) {
+            fetchTimetable(batch, parseInt(sem, 10), day);
+        }
+    };
+
+    batchSelect?.addEventListener("change", checkAndTriggerFetch);
+    semesterSelect?.addEventListener("change", checkAndTriggerFetch);
+    daySelect?.addEventListener("change", checkAndTriggerFetch);
+
+    if (saveBtn) {
+        saveBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            saveTimetable();
+        });
+    }
+
+    checkAndTriggerFetch();
+    if (typeof fetchWeeklyMatrix === "function") {
+        fetchWeeklyMatrix();
+    }
+}
+
+async function fetchTimetable(batch, semester, day) {
+    try {
+        renderTimetableSlots();
+        let timetableData;
+        try {
+            timetableData = await apiFetch(`/api/admin/timetable?batch=${encodeURIComponent(batch)}&semester=${semester}&day=${encodeURIComponent(day)}`, 'GET');
+        } catch (err) {
+            timetableData = await apiFetch(`/api/timetable?batch=${encodeURIComponent(batch)}&semester=${semester}&day=${encodeURIComponent(day)}`, 'GET');
+        }
+        populateTimetableUI(timetableData || []);
+    } catch (error) {
+        console.error("Failed to load timetable:", error);
+    }
+}
+
+async function saveTimetable() {
+    const batchSelect = document.getElementById("tt-batch-select") || document.getElementById("batchSelect") || document.getElementById("timetable-batch-select");
+    const semesterSelect = document.getElementById("tt-semester-select") || document.getElementById("semesterSelect") || document.getElementById("timetable-semester-select");
+    const daySelect = document.getElementById("tt-day-select") || document.getElementById("daySelect") || document.getElementById("timetable-day-select");
+
+    const batch = batchSelect?.value;
+    const semester = parseInt(semesterSelect?.value, 10);
+    const day = daySelect?.value;
+
+    if (!batch || batch === "" || batch === "Select Batch") {
+        showAlert("Please select a valid batch.", true);
+        return;
+    }
+    if (isNaN(semester)) {
+        showAlert("Please select a valid semester.", true);
+        return;
+    }
+    if (!day) {
+        showAlert("Please select a valid day.", true);
+        return;
+    }
+
+    let slotInputs = document.querySelectorAll(".timetable-slot-input");
+    let slots = [];
+
+    if (slotInputs.length > 0) {
+        slots = Array.from(slotInputs).map((elem) => ({
+            hour: parseInt(elem.dataset.hour || elem.getAttribute("data-hour"), 10),
+            subjectCode: elem.value.trim().toUpperCase()
+        })).filter(slot => slot.subjectCode !== "" && !isNaN(slot.hour));
+    } else {
+        for (let h = 1; h <= 5; h++) {
+            const elem = document.getElementById(`hour${h}Input`) || document.querySelector(`[data-hour="${h}"]`);
+            if (elem && elem.value.trim() !== "") {
+                slots.push({
+                    hour: h,
+                    subjectCode: elem.value.trim().toUpperCase()
+                });
+            }
+        }
+    }
+
+    const payload = {
+        batch: batch,
+        semester: semester,
+        day: day,
+        slots: slots
+    };
+
+    try {
+        let res;
+        try {
+            res = await apiFetch('/api/admin/timetable', 'POST', payload);
+        } catch (err) {
+            res = await apiFetch('/api/timetable', 'POST', payload);
+        }
+        showAlert(res?.message || "Timetable saved successfully!");
+
+        // Auto-sync the overview matrix filter selection to match saved batch/semester
+        const overviewBatch = document.getElementById("overview-tt-batch-select");
+        const overviewSem = document.getElementById("overview-tt-semester-select");
+        if (overviewBatch) overviewBatch.value = batch;
+        if (overviewSem) overviewSem.value = semester;
+
+        // Trigger real-time matrix refresh
+        if (typeof window.fetchWeeklyMatrix === "function") {
+            window.fetchWeeklyMatrix();
+        }
+    } catch (error) {
+        console.error("Error saving timetable:", error);
+        showAlert(`Failed to save timetable: ${error.message}`, true);
+    }
+}
+
+function populateTimetableUI(slotsData) {
+    document.querySelectorAll(".timetable-slot-input, [id^='hour']").forEach(elem => {
+        elem.value = "";
+    });
+
+    if (Array.isArray(slotsData)) {
+        slotsData.forEach(slot => {
+            const elem = document.querySelector(`.timetable-slot-input[data-hour="${slot.hour}"]`) ||
+                         document.getElementById(`hour${slot.hour}Input`) ||
+                         document.querySelector(`[data-hour="${slot.hour}"]`);
+            if (elem) elem.value = slot.subjectCode || "";
+        });
+    } else if (typeof slotsData === 'object' && slotsData !== null) {
+        Object.entries(slotsData).forEach(([hour, subjectCode]) => {
+            const elem = document.querySelector(`.timetable-slot-input[data-hour="${hour}"]`) ||
+                         document.getElementById(`hour${hour}Input`) ||
+                         document.querySelector(`[data-hour="${hour}"]`);
+            if (elem) elem.value = subjectCode || "";
+        });
+    }
+}
+
+// Fetches all 5 days for the selected batch/semester and populates the overview matrix
+async function fetchWeeklyMatrix() {
+    const batchSelect = document.getElementById("overview-tt-batch-select");
+    const semesterSelect = document.getElementById("overview-tt-semester-select");
+    const tbody = document.getElementById("weekly-matrix-body");
+
+    if (!tbody) return;
+
+    const batch = batchSelect?.value;
+    const semester = semesterSelect?.value;
+
+    if (!batch || !semester) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-slate-400 italic text-center">Select batch and semester to load full week timetable...</td></tr>`;
+        return;
+    }
+
+    // Map subject codes to full subject names using active assigned subjects cache
+    const subjectNameMap = new Map();
+    (assignedSubjectsCache || []).forEach(item => {
+        if (item.subjectCode) {
+            subjectNameMap.set(item.subjectCode, item.subjectName);
+        }
+    });
+
+    const days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
+
+    try {
+        // Fetch timetable for all 5 days in parallel
+        const promises = days.map(day =>
+            apiFetch(`/api/admin/timetable?batch=${encodeURIComponent(batch)}&semester=${semester}&day=${day}`, 'GET')
+                .catch(() => apiFetch(`/api/timetable?batch=${encodeURIComponent(batch)}&semester=${semester}&day=${day}`, 'GET'))
+                .catch(() => [])
+        );
+
+        const results = await Promise.all(promises);
+
+        let matrixHtml = '';
+        days.forEach((day, index) => {
+            const daySlots = results[index] || [];
+
+            // Map period slots to hour keys (1 to 5)
+            const slotMap = {};
+            if (Array.isArray(daySlots)) {
+                daySlots.forEach(s => {
+                    // Priority: direct subjectName -> cache lookup by subjectCode -> subjectCode fallback
+                    const displayName = s.subjectName || subjectNameMap.get(s.subjectCode) || s.subjectCode;
+                    slotMap[s.hour] = displayName;
+                });
+            } else if (typeof daySlots === 'object' && daySlots !== null) {
+                Object.entries(daySlots).forEach(([hour, codeOrName]) => {
+                    const displayName = subjectNameMap.get(codeOrName) || codeOrName;
+                    slotMap[hour] = displayName;
+                });
+            }
+
+            matrixHtml += `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="py-3 px-4 font-sans font-bold text-slate-700 text-left bg-slate-50/50 border-r border-slate-200">${day}</td>
+                    ${[1, 2, 3, 4, 5].map(hour => {
+                        const subjectDisplay = slotMap[hour] || '-';
+                        const isEmpty = subjectDisplay === '-';
+                        return `
+                            <td class="py-3 px-3 border-r border-slate-200 ${isEmpty ? 'text-slate-300 font-sans' : 'font-bold text-indigo-600 bg-indigo-50/30'}">
+                                ${escapeHtml(subjectDisplay)}
+                            </td>
+                        `;
+                    }).join('')}
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = matrixHtml;
+    } catch (err) {
+        console.error("Error loading weekly matrix:", err);
+        tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-red-500 text-center text-xs">Failed to load weekly matrix.</td></tr>`;
+    }
+}
+
+// Dynamically populates all batch dropdowns in the application
+function populateBatchDropdowns(batches) {
+    const dropdownConfigs = [
+        { id: 'student-batch-filter', defaultLabel: 'All Batches', defaultValue: 'ALL' },
+        { id: 'filter-assigned-batch', defaultLabel: 'All Batches', defaultValue: 'ALL' },
+        { id: 'log-filter-batch', defaultLabel: 'All Batches', defaultValue: 'ALL' },
+        { id: 'modal-batch', defaultLabel: 'Select Batch', defaultValue: '' },
+        { id: 'assign-batch-select', defaultLabel: 'Select Batch', defaultValue: '' },
+        { id: 'tt-batch-select', defaultLabel: 'Select Batch', defaultValue: '' },
+        { id: 'batchSelect', defaultLabel: 'Select Batch', defaultValue: '' },
+        { id: 'timetable-batch-select', defaultLabel: 'Select Batch', defaultValue: '' },
+        { id: 'overview-tt-batch-select', defaultLabel: 'Select Batch', defaultValue: '' }
+    ];
+
+    dropdownConfigs.forEach(({ id, defaultLabel, defaultValue }) => {
+        const selectEl = document.getElementById(id);
+        if (!selectEl) return;
+
+        const currentVal = selectEl.value;
+        let optionsHtml = defaultValue === 'ALL'
+            ? `<option value="ALL">${defaultLabel}</option>`
+            : `<option value="" disabled ${!currentVal ? 'selected' : ''}>${defaultLabel}</option>`;
+
+        batches.forEach(b => {
+            const batchName = b.batch || b.batchName;
+            if (batchName) {
+                optionsHtml += `<option value="${escapeHtml(batchName)}">${escapeHtml(batchName)}</option>`;
+            }
+        });
+
+        selectEl.innerHTML = optionsHtml;
+        if (currentVal && Array.from(selectEl.options).some(o => o.value === currentVal)) {
+            selectEl.value = currentVal;
+        }
+    });
+}
+
+// Global scope bindings
+window.fetchWeeklyMatrix = fetchWeeklyMatrix;
+window.initTimetable = initTimetable;
+window.fetchTimetable = fetchTimetable;
+window.saveTimetable = saveTimetable;
+window.saveTimetableSchedule = saveTimetable;
 window.exportAdminLogsCSV = exportAdminLogsCSV;

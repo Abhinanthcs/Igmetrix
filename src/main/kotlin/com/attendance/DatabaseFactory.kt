@@ -20,6 +20,7 @@ object DatabaseFactory {
                 AttendanceRecords,
                 Batches,
                 Subjects,
+                Timetables,
                 BatchSubjects
             )
         }

@@ -85,6 +85,35 @@ data class UpdateAttendanceStatusRequest(
     val status: String
 )
 
+@Serializable
+data class TimetableSlotRequest(
+    val hour: Int,
+    val subjectCode: String? = null
+)
+
+@Serializable
+data class SaveTimetableRequest(
+    val batch: String,
+    val semester: Int,
+    val day: String,
+    val slots: List<TimetableSlotRequest>
+)
+
+@Serializable
+data class TimetableSlotResponse(
+    val hour: Int,
+    val subjectCode: String? = null,
+    val subjectName: String? = null
+)
+
+@Serializable
+data class TimetableDayResponse(
+    val batch: String,
+    val semester: Int,
+    val day: String,
+    val slots: List<TimetableSlotResponse>
+)
+
 fun Application.configureAdminRoutes() {
     routing {
         authenticate("auth-jwt") {
@@ -704,6 +733,108 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.InternalServerError, ApiResponse("Failed to update attendance status."))
                     }
                 }
+                // --- TIMETABLE ROUTES ---
+
+// GET /api/admin/timetable?batch=2024-2027&semester=3
+                // --- TIMETABLE ROUTES ---
+
+// GET /api/admin/timetable?batch=2024-2027&semester=3&day=Monday
+                get("/timetable") {
+                    try {
+                        val batchParam = call.request.queryParameters["batch"]
+                        val semesterParam = call.request.queryParameters["semester"]?.toIntOrNull()
+                        val dayParam = call.request.queryParameters["day"]
+
+                        if (batchParam.isNullOrBlank() || semesterParam == null) {
+                            call.respond(
+                                HttpStatusCode.BadRequest,
+                                ApiResponse("Batch and semester parameters are required.")
+                            )
+                            return@get
+                        }
+
+                        // If a specific day is requested, use TimetableRepository directly
+                        if (!dayParam.isNullOrBlank()) {
+                            val slots = TimetableRepository.getTimetableForDay(batchParam, semesterParam, dayParam)
+                            call.respond(HttpStatusCode.OK, slots)
+                            return@get
+                        }
+
+                        // Otherwise fetch full week grouped by day
+                        val timetableDays = transaction {
+                            Timetables
+                                .leftJoin(Subjects, { Timetables.subjectCode }, { Subjects.code })
+                                .selectAll()
+                                .where {
+                                    (Timetables.batch eq batchParam) and
+                                            (Timetables.semester eq semesterParam)
+                                }
+                                .groupBy { it[Timetables.day] }
+                                .map { (day, rows) ->
+                                    TimetableDayResponse(
+                                        batch = batchParam,
+                                        semester = semesterParam,
+                                        day = day,
+                                        slots = rows.map { row ->
+                                            TimetableSlotResponse(
+                                                hour = row[Timetables.hour],
+                                                subjectCode = row[Timetables.subjectCode],
+                                                subjectName = row.getOrNull(Subjects.name)
+                                            )
+                                        }
+                                    )
+                                }
+                        }
+
+                        call.respond(HttpStatusCode.OK, timetableDays)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ApiResponse(e.message ?: "Failed to fetch timetable.")
+                        )
+                    }
+                }
+
+// POST /api/admin/timetable
+                post("/timetable") {
+                    try {
+                        val req = call.receive<SaveTimetableRequest>()
+
+                        // Validate that assigned subjects belong to active semester mappings
+                        val activeSubjects = transaction {
+                            BatchSubjects
+                                .selectAll()
+                                .where { (BatchSubjects.batch eq req.batch) and (BatchSubjects.semester eq req.semester) }
+                                .map { it[BatchSubjects.subjectCode] }
+                                .toSet()
+                        }
+
+                        val invalidSlot = req.slots.firstOrNull {
+                            !it.subjectCode.isNullOrBlank() && !activeSubjects.contains(it.subjectCode)
+                        }
+
+                        if (invalidSlot != null) {
+                            call.respond(
+                                HttpStatusCode.BadRequest,
+                                ApiResponse("Subject ${invalidSlot.subjectCode} is not actively mapped to ${req.batch} Sem ${req.semester}.")
+                            )
+                            return@post
+                        }
+
+                        // Save timetable using repository
+                        TimetableRepository.saveTimetableForDay(req)
+
+                        call.respond(HttpStatusCode.OK, ApiResponse("Timetable updated successfully."))
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ApiResponse(e.message ?: "Failed to save timetable.")
+                        )
+                    }
+                }
+
             }
         }
     }
