@@ -877,9 +877,13 @@ function renderPivotAttendanceTable(logs) {
             sessionsMap.set(sessionKey, { header: sessionHeader, rawDate: date, rawHour: hour });
         }
 
-        const isPresent = log.status === 'PRESENT' || log.status === 'P';
+        // Map status: P = Present, L = Late, A = Absent
+        let statusTag = 'A';
+        if (log.status === 'PRESENT' || log.status === 'P') statusTag = 'P';
+        else if (log.status === 'LATE' || log.status === 'L') statusTag = 'L';
+
         studentsMap.get(reg).attendance[sessionKey] = {
-            status: isPresent ? 'P' : 'A',
+            status: statusTag,
             logId: log.id || log.attendanceId
         };
     });
@@ -910,16 +914,28 @@ function renderPivotAttendanceTable(logs) {
                     return `<td class="py-3 px-4 text-center font-mono text-slate-300">-</td>`;
                 }
 
-                const isP = record.status === 'P';
-                const nextStatus = isP ? 'ABSENT' : 'PRESENT';
+                const current = record.status;
+
+                // Cycle order: P -> A -> L -> P
+                let nextStatus = 'PRESENT';
+                let btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20'; // Default A
+
+                if (current === 'P') {
+                    nextStatus = 'ABSENT';
+                    btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20';
+                } else if (current === 'A') {
+                    nextStatus = 'LATE';
+                    btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
+                } else if (current === 'L') {
+                    nextStatus = 'PRESENT';
+                    btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20';
+                }
 
                 return `
                     <td class="py-3 px-4 text-center font-mono font-bold">
                         <button onclick="toggleAttendanceStatus('${record.logId}', '${nextStatus}')"
-                                class="px-2.5 py-1 rounded transition-all cursor-pointer ${
-                                    isP ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20' : 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20'
-                                }">
-                            ${record.status}
+                                class="px-2.5 py-1 rounded transition-all cursor-pointer ${btnStyle}">
+                            ${current}
                         </button>
                     </td>
                 `;

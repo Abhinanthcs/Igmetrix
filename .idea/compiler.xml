@@ -6,7 +6,7 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="Igmetrix" />
+        <module name="attendance-system-backend" />
       </profile>
     </annotationProcessing>
   </component>

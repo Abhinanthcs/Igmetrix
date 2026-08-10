@@ -140,6 +140,10 @@ async function loadStudentRoster(batch) {
                         <input type="radio" name="status_${index}" value="A" data-regnum="${student.registerNumber}" class="text-rose-600 focus:ring-rose-500">
                         <span>A</span>
                     </label>
+                    <label class="flex items-center space-x-1 cursor-pointer text-amber-600 font-bold">
+                        <input type="radio" name="status_${index}" value="L" data-regnum="${student.registerNumber}" class="text-amber-600 focus:ring-amber-500">
+                        <span>L</span>
+                    </label>
                 </div>
             </td>
         `;
