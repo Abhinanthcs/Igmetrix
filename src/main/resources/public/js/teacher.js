@@ -3,6 +3,14 @@ document.addEventListener('DOMContentLoaded', () => {
     loadBatches();
 
     document.getElementById('bulkAttendanceForm').addEventListener('submit', submitBulkAttendance);
+
+    // Event listeners to trigger auto-select whenever time/date inputs change
+    document.getElementById('date')?.addEventListener('change', autoSelectSubjectFromTimetable);
+    document.getElementById('hour')?.addEventListener('input', autoSelectSubjectFromTimetable);
+    document.getElementById('hour')?.addEventListener('change', autoSelectSubjectFromTimetable);
+    document.getElementById('batchSelect')?.addEventListener('change', onBatchOrSemChange);
+    document.getElementById('semesterSelect')?.addEventListener('change', onBatchOrSemChange);
+    document.getElementById('subjectSelect')?.addEventListener('change', onSubjectSelectChange);
 });
 
 function getAuthHeader() {
@@ -49,9 +57,13 @@ async function onBatchOrSemChange() {
     const batch = document.getElementById('batchSelect').value;
     const sem = document.getElementById('semesterSelect').value;
 
-    if (batch) {
+    if (batch && sem) {
         await loadSubjectsForBatchAndSem(batch, sem);
         await loadStudentRoster(batch);
+        await autoSelectSubjectFromTimetable();
+    } else if (batch) {
+        await loadStudentRoster(batch);
+        document.getElementById('subjectSelect').innerHTML = '<option value="">Select Subject</option>';
     } else {
         document.getElementById('subjectSelect').innerHTML = '<option value="">Select Subject</option>';
         document.getElementById('studentRosterBody').innerHTML = `
@@ -61,7 +73,7 @@ async function onBatchOrSemChange() {
     }
 }
 
-// Load subjects assigned to batch + semester
+// Load subjects assigned to batch + semester (Displays "Subject Name - Subject Code")
 async function loadSubjectsForBatchAndSem(batch, sem) {
     const subjectSelect = document.getElementById('subjectSelect');
     try {
@@ -75,12 +87,67 @@ async function loadSubjectsForBatchAndSem(batch, sem) {
                 const opt = document.createElement('option');
                 opt.value = s.code;
                 opt.dataset.name = s.name;
-                opt.textContent = `${s.code} - ${s.name}`;
+                opt.textContent = `${s.name} - ${s.code}`; // Standardized to Name first, then Code
                 subjectSelect.appendChild(opt);
             });
         }
     } catch (e) {
         console.error("Failed to load subjects", e);
+    }
+}
+
+// Auto-select subject based on timetable schedule
+async function autoSelectSubjectFromTimetable() {
+    const batch = document.getElementById('batchSelect')?.value;
+    const sem = document.getElementById('semesterSelect')?.value;
+    const dateVal = document.getElementById('date')?.value;
+    const hourVal = document.getElementById('hour')?.value;
+    const subjectSelect = document.getElementById('subjectSelect');
+
+    if (!batch || !sem || !dateVal || !hourVal || !subjectSelect) return;
+
+    const semNumber = parseInt(String(sem).replace(/[^0-9]/g, ''), 10) || sem;
+    const hourNumber = parseInt(hourVal, 10);
+
+    const [year, month, day] = dateVal.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    const dayNames = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+    const dayOfWeek = dayNames[dateObj.getDay()];
+
+    try {
+        let response = await fetch(`/api/admin/timetable?batch=${encodeURIComponent(batch)}&semester=${encodeURIComponent(semNumber)}&day=${dayOfWeek}`, {
+            headers: { ...getAuthHeader() }
+        });
+
+        if (!response.ok) {
+            response = await fetch(`/api/timetable?batch=${encodeURIComponent(batch)}&semester=${encodeURIComponent(semNumber)}&day=${dayOfWeek}`, {
+                headers: { ...getAuthHeader() }
+            });
+        }
+
+        if (!response.ok) return;
+
+        const slots = await response.json();
+        let assignedCode = null;
+
+        if (Array.isArray(slots)) {
+            const matchedSlot = slots.find(s => parseInt(s.hour, 10) === hourNumber);
+            assignedCode = matchedSlot?.subjectCode || matchedSlot?.[hourNumber];
+        } else if (typeof slots === 'object' && slots !== null) {
+            assignedCode = slots[hourNumber] || slots[String(hourNumber)];
+        }
+
+        if (assignedCode) {
+            const options = Array.from(subjectSelect.options);
+            const matchedOption = options.find(opt => opt.value === assignedCode);
+
+            if (matchedOption) {
+                subjectSelect.value = assignedCode;
+                onSubjectSelectChange();
+            }
+        }
+    } catch (e) {
+        console.warn("Timetable auto-selection skipped:", e);
     }
 }
 
@@ -155,7 +222,7 @@ async function loadStudentRoster(batch) {
 async function submitBulkAttendance(e) {
     e.preventDefault();
     const feedback = document.getElementById('feedbackMessage');
-    feedback.className = "hidden";
+    if (feedback) feedback.className = "hidden";
 
     const selectedStudents = [];
     const radioGroups = document.querySelectorAll('#studentRosterBody input[type="radio"]:checked');
@@ -187,18 +254,22 @@ async function submitBulkAttendance(e) {
 
         const result = await response.json();
 
-        if (response.ok) {
-            feedback.className = "p-3 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 block";
-            feedback.innerText = "All student attendance records submitted successfully!";
-        } else if (response.status === 409) {
-            feedback.className = "p-3 text-xs font-semibold rounded-lg bg-amber-50 text-amber-800 border border-amber-200 block";
-            feedback.innerText = `⚠️ Duplicate Warning: ${result.error}`;
-        } else {
-            feedback.className = "p-3 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 border border-rose-200 block";
-            feedback.innerText = result.error || "Failed to submit attendance.";
+        if (feedback) {
+            if (response.ok) {
+                feedback.className = "p-3 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 block";
+                feedback.innerText = "All student attendance records submitted successfully!";
+            } else if (response.status === 409) {
+                feedback.className = "p-3 text-xs font-semibold rounded-lg bg-amber-50 text-amber-800 border border-amber-200 block";
+                feedback.innerText = `⚠️ Duplicate Warning: ${result.error}`;
+            } else {
+                feedback.className = "p-3 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 border border-rose-200 block";
+                feedback.innerText = result.error || "Failed to submit attendance.";
+            }
         }
     } catch (err) {
-        feedback.className = "p-3 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 border border-rose-200 block";
-        feedback.innerText = "Error connecting to backend server.";
+        if (feedback) {
+            feedback.className = "p-3 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 border border-rose-200 block";
+            feedback.innerText = "Error connecting to backend server.";
+        }
     }
 }
