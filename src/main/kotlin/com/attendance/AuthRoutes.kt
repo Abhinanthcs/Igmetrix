@@ -13,12 +13,13 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.*
+import org.mindrot.jbcrypt.BCrypt
 
 @Serializable
 data class AdminLoginRequest(val department: String, val password: String)
 
 @Serializable
-data class TeacherLoginRequest(val teacherId: String, val dateOfBirth: String)
+data class TeacherLoginRequest(val teacherId: String, val password: String)
 
 @Serializable
 data class StudentLoginRequest(val registerNumber: String, val dateOfBirth: String)
@@ -107,32 +108,40 @@ fun Route.configureAuthRoutes(secret: String, issuer: String, audience: String) 
         }
 
         // Teacher Authentication (Teacher ID + Date of Birth)
+        // Ensure TeacherLoginRequest DTO has: val teacherId: String, val password: String
         post("/teacher-login") {
             val credentials = call.receive<TeacherLoginRequest>()
 
-            val parsedDob = try {
-                LocalDate.parse(credentials.dateOfBirth.trim())
-            } catch (_: Exception) {
-                try {
-                    LocalDate.parse(credentials.dateOfBirth.trim(), DateTimeFormatter.ofPattern("dd-MM-yyyy"))
-                } catch (_: Exception) {
-                    return@post call.respond(
-                        HttpStatusCode.BadRequest,
-                        mapOf("error" to "Invalid date format. Use YYYY-MM-DD or DD-MM-YYYY.")
-                    )
-                }
-            }
-
+            // Fetch teacher record by teacherId
             val teacher = transaction {
                 Teachers.selectAll()
-                    .where {
-                        (Teachers.teacherId.lowerCase() eq credentials.teacherId.trim().lowercase()) and
-                                (Teachers.dateOfBirth eq parsedDob)
-                    }
+                    .where { Teachers.teacherId.lowerCase() eq credentials.teacherId.trim().lowercase() }
                     .singleOrNull()
             }
 
-            if (teacher != null) {
+            if (teacher == null) {
+                return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    mapOf("error" to "Invalid Teacher ID or Password.")
+                )
+            }
+
+            val storedPassword = teacher[Teachers.password]
+
+            // Verify password safely (supports plain-text and legacy BCrypt hashes)
+            val isValidPassword = when {
+                storedPassword == null-> false
+                storedPassword.startsWith("$2a$") || storedPassword.startsWith("$2b$") || storedPassword.startsWith("$2y$") -> {
+                    try {
+                        BCrypt.checkpw(credentials.password, storedPassword)
+                    } catch (_: Exception) {
+                        storedPassword == credentials.password
+                    }
+                }
+                else -> storedPassword == credentials.password
+            }
+
+            if (isValidPassword) {
                 val role = "teacher"
                 val token = JWT.create()
                     .withAudience(audience)
@@ -143,13 +152,18 @@ fun Route.configureAuthRoutes(secret: String, issuer: String, audience: String) 
                     .withExpiresAt(Date(System.currentTimeMillis() + 86_400_000)) // 24 hours
                     .sign(Algorithm.HMAC256(secret))
 
-                call.respond(AuthResponse(
-                    token = token,
-                    department = teacher[Teachers.department],
-                    role = role
-                ))
+                call.respond(
+                    AuthResponse(
+                        token = token,
+                        department = teacher[Teachers.department],
+                        role = role
+                    )
+                )
             } else {
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid Teacher ID or Date of Birth."))
+                call.respond(
+                    HttpStatusCode.Unauthorized,
+                    mapOf("error" to "Invalid Teacher ID or Password.")
+                )
             }
         }
     }

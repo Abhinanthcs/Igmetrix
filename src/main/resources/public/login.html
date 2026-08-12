@@ -12,26 +12,28 @@
 
     <!-- Role Selector Tabs -->
     <div class="flex border-b border-slate-200 mb-6 font-semibold text-sm">
-        <button id="tab-student" class="flex-1 py-2 text-center text-slate-800 border-b-2 border-slate-800 font-bold transition-all">Student</button>
-        <button id="tab-teacher" class="flex-1 py-2 text-center text-slate-400 hover:text-slate-700 transition-all">Teacher</button>
-        <button id="tab-admin" class="flex-1 py-2 text-center text-slate-400 hover:text-slate-700 transition-all">Admin</button>
+        <button type="button" id="tab-student" data-role="student" class="flex-1 py-2 text-center text-slate-800 border-b-2 border-slate-800 font-bold transition-all">Student</button>
+        <button type="button" id="tab-teacher" data-role="teacher" class="flex-1 py-2 text-center text-slate-400 hover:text-slate-700 transition-all">Teacher</button>
+        <button type="button" id="tab-admin" data-role="admin" class="flex-1 py-2 text-center text-slate-400 hover:text-slate-700 transition-all">Admin</button>
     </div>
 
     <h2 id="login-title" class="text-2xl font-bold text-center text-slate-800">Student Login</h2>
     <p id="login-subtitle" class="text-xs text-center text-slate-500 mb-6">Enter your credentials to access your portal</p>
 
     <form id="loginForm" class="space-y-4">
+        <!-- Hidden Role Input for JS auth handling -->
+        <input type="hidden" id="role" value="student">
 
-        <!-- Dynamic Input 1: Register Number / Dept -->
+        <!-- Dynamic Input 1: Register Number / Teacher ID / Username -->
         <div>
             <label id="label-field1" class="block text-xs font-bold text-slate-600 uppercase mb-1">Register Number</label>
-            <input type="text" id="field1" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-slate-800">
+            <input type="text" id="field1" required autocomplete="username" placeholder="Enter register number" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-slate-800">
         </div>
 
         <!-- Dynamic Input 2: Date of Birth / Password -->
         <div>
             <label id="label-field2" class="block text-xs font-bold text-slate-600 uppercase mb-1">Date of Birth</label>
-            <input type="date" id="field2" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-slate-800">
+            <input type="date" id="field2" required autocomplete="current-password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-slate-800">
         </div>
 
         <!-- Error Banner -->

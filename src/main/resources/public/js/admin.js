@@ -312,14 +312,29 @@ async function handleCreateBatch(event) {
     }
 }
 
-// Handle Teacher Creation
 async function handleCreateTeacher(event) {
     event.preventDefault();
+
+    const idInput = document.getElementById('teacher-id')?.value.trim() || '';
+    const nameInput = document.getElementById('teacher-name')?.value.trim() || '';
+    let dobInput = document.getElementById('teacher-dob')?.value || '';
+    const passwordInput = document.getElementById('teacher-password')?.value || '';
+    const phoneInput = document.getElementById('teacher-phone')?.value.trim() || 'N/A';
+
+    // Format YYYY-MM-DD -> DD-MM-YYYY if necessary
+    if (dobInput.includes('-')) {
+        const parts = dobInput.split('-');
+        if (parts[0].length === 4) {
+            dobInput = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+    }
+
     const payload = {
-        teacherId: document.getElementById('teacher-id')?.value.trim(),
-        name: document.getElementById('teacher-name')?.value.trim(),
-        dateOfBirth: document.getElementById('teacher-dob')?.value,
-        phoneNumber: document.getElementById('teacher-phone')?.value.trim() || 'N/A'
+        teacherId: idInput,
+        name: nameInput,
+        dateOfBirth: dobInput,
+        password: passwordInput,
+        phoneNumber: phoneInput
     };
 
     try {
@@ -449,9 +464,7 @@ async function fetchBatches() {
             }
         }
 
-        // Populate dropdowns for Batch Filters, Modals/Forms, Timetable and Overview
         populateBatchDropdowns(batches || []);
-
     } catch (err) {
         console.error('Error fetching batches:', err);
     }
@@ -461,7 +474,6 @@ async function fetchSubjects() {
     try {
         const subjects = await apiFetch('/api/admin/subjects', 'GET');
 
-        // 1. Populate Subject Catalog Table
         const tbody = document.getElementById('subject-table-body');
         if (tbody) {
             tbody.innerHTML = (subjects && subjects.length > 0)
@@ -477,7 +489,6 @@ async function fetchSubjects() {
                 : `<tr><td colspan="3" class="py-4 text-center text-slate-400 italic">No subjects in catalog.</td></tr>`;
         }
 
-        // 2. Populate 'Assign Subject' Dropdown
         const assignSelect = document.getElementById('assign-subject-select');
         if (assignSelect) {
             assignSelect.innerHTML = `<option value="" disabled selected>Select Subject</option>` +
@@ -502,7 +513,6 @@ async function populateSubjectFilter() {
     try {
         let subjects = [];
 
-        // Check assigned subjects cache first if batch or semester filters are active
         if (selectedBatch !== 'ALL' || selectedSemester !== 'ALL') {
             const filteredMappings = assignedSubjectsCache.filter(item => {
                 const matchBatch = selectedBatch === 'ALL' || String(item.batch) === String(selectedBatch);
@@ -518,13 +528,11 @@ async function populateSubjectFilter() {
             }
         }
 
-        // Fallback: fetch directly from catalog if no specific assignment filter matched
         if (subjects.length === 0) {
             const catalog = await apiFetch('/api/admin/subjects', 'GET');
             subjects = catalog || [];
         }
 
-        // Deduplicate subjects by code
         const uniqueSubjects = Array.from(
             new Map(subjects.map(s => [s.code || s.subjectCode, s])).values()
         );
@@ -648,25 +656,43 @@ async function fetchTeachers() {
         if (!tbody) return;
 
         if (!teachers || teachers.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="py-4 px-6 text-center text-slate-400 italic">No teachers found.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="py-4 px-6 text-center text-slate-400 italic">No teachers found.</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = teachers.map(t => `
-            <tr class="hover:bg-slate-50 transition-colors">
-                <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(t.teacherId)}</td>
-                <td class="py-3 px-6 font-medium text-slate-700">${escapeHtml(t.name)}</td>
-                <td class="py-3 px-6 text-slate-500">${escapeHtml(t.dateOfBirth)}</td>
-                <td class="py-3 px-6 text-slate-500">${escapeHtml(t.phoneNumber || 'N/A')}</td>
-                <td class="py-3 px-6 text-right">
-                    <button onclick="confirmDeleteTeacher('${escapeHtml(t.teacherId)}')" class="text-red-500 hover:text-red-700 font-bold">Remove</button>
-                </td>
-            </tr>
-        `).join('');
+        tbody.innerHTML = teachers.map((t, index) => {
+            const pwd = t.password || 'N/A';
+            const maskedPwd = pwd !== 'N/A' ? '•'.repeat(pwd.length) : 'N/A';
+
+            return `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(t.teacherId)}</td>
+                    <td class="py-3 px-6 font-medium text-slate-700">${escapeHtml(t.name)}</td>
+                    <td class="py-3 px-6 text-slate-500">${escapeHtml(t.dateOfBirth)}</td>
+                    <td class="py-3 px-6 text-slate-500">${escapeHtml(t.phoneNumber || 'N/A')}</td>
+                    <td class="py-3 px-6">
+                        <div class="flex items-center gap-2">
+                            <span id="teacher-pwd-${index}" class="font-mono text-xs text-slate-600" data-raw-pwd="${escapeHtml(pwd)}" data-masked-pwd="${escapeHtml(maskedPwd)}">${escapeHtml(maskedPwd)}</span>
+                            <button type="button" onclick="toggleTeacherPasswordVisibility(${index})" class="p-1 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none" title="Toggle Password Visibility">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                    <td class="py-3 px-6 text-right">
+                        <button onclick="confirmDeleteTeacher('${escapeHtml(t.teacherId)}')" class="text-red-500 hover:text-red-700 font-bold">Remove</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
     } catch (err) {
         console.error('Error fetching teachers:', err);
     }
 }
+
+// --- ADMIN LOGS & APPROVALS ---
 
 async function fetchPendingLogs() {
     try {
@@ -772,7 +798,7 @@ function confirmDeleteTeacher(teacherId) {
     });
 }
 
-// --- ATTENDANCE LOGS FETCHING & SORTING ---
+// --- ATTENDANCE LOGS FETCHING & MATRIX RENDERING ---
 
 async function fetchAttendanceLogs() {
     const dateMode = document.getElementById('log-date-mode')?.value || 'ALL';
@@ -817,7 +843,6 @@ async function fetchAttendanceLogs() {
         }
 
         renderPivotAttendanceTable(logs);
-
     } catch (err) {
         console.error('Error fetching attendance logs:', err);
     }
@@ -891,7 +916,6 @@ function renderPivotAttendanceTable(logs) {
                 }
 
                 const current = record.status;
-
                 let nextStatus = 'PRESENT';
                 let btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
 
@@ -936,7 +960,6 @@ function updateAttendanceSummaryStats(logs) {
     if (rateEl) rateEl.textContent = `${rate}%`;
 }
 
-// Toggle status between PRESENT and ABSENT
 async function toggleAttendanceStatus(id, newStatus) {
     try {
         await apiFetch(`/api/admin/attendance/${id}`, 'PUT', {
@@ -960,7 +983,8 @@ async function toggleAttendanceStatus(id, newStatus) {
     }
 }
 
-// --- EXPORT TO CSV ---
+// --- CSV EXPORT UTILITIES ---
+
 function exportAdminLogsCSV() {
     const logs = window.currentAttendanceLogs;
     if (!logs || logs.length === 0) {
@@ -1037,11 +1061,8 @@ function downloadCSV(filename, headers, rows) {
     document.body.removeChild(link);
 }
 
-// --- TIMETABLE MANAGEMENT & ADMIN UTILITIES ---
+// --- TIMETABLE MANAGEMENT ---
 
-/**
- * Helper function to retrieve mapped subjects for currently selected Batch and Semester
- */
 function getMappedSubjectsForSelectedBatchAndSem() {
     const batchSelect = document.getElementById("tt-batch-select") || document.getElementById("batchSelect") || document.getElementById("timetable-batch-select");
     const semesterSelect = document.getElementById("tt-semester-select") || document.getElementById("semesterSelect") || document.getElementById("timetable-semester-select");
@@ -1053,7 +1074,6 @@ function getMappedSubjectsForSelectedBatchAndSem() {
         return [];
     }
 
-    // Filter assignedSubjectsCache for matching batch & semester
     const cache = window.assignedSubjectsCache || (typeof assignedSubjectsCache !== 'undefined' ? assignedSubjectsCache : []);
     return cache.filter(item => {
         const itemSem = String(item.semester).replace(/[^0-9]/g, '');
@@ -1062,7 +1082,6 @@ function getMappedSubjectsForSelectedBatchAndSem() {
     });
 }
 
-// Renders default 5 period slots as dropdowns into the table
 function renderTimetableSlots() {
     const tbody = document.getElementById("timetable-slots-body");
     if (!tbody) return;
@@ -1109,7 +1128,6 @@ function initTimetable() {
         const sem = semesterSelect?.value;
         const day = daySelect?.value;
 
-        // Re-render dropdown options whenever Batch/Semester changes
         renderTimetableSlots();
 
         if (batch && batch !== "" && batch !== "Select Batch" && sem && day) {
@@ -1191,12 +1209,7 @@ async function saveTimetable() {
         }
     }
 
-    const payload = {
-        batch: batch,
-        semester: semester,
-        day: day,
-        slots: slots
-    };
+    const payload = { batch, semester, day, slots };
 
     try {
         let res;
@@ -1207,13 +1220,11 @@ async function saveTimetable() {
         }
         showAlert(res?.message || "Timetable saved successfully!");
 
-        // Auto-sync the overview matrix filter selection to match saved batch/semester
         const overviewBatch = document.getElementById("overview-tt-batch-select");
         const overviewSem = document.getElementById("overview-tt-semester-select");
         if (overviewBatch) overviewBatch.value = batch;
         if (overviewSem) overviewSem.value = semester;
 
-        // Trigger real-time matrix refresh
         if (typeof window.fetchWeeklyMatrix === "function") {
             window.fetchWeeklyMatrix();
         }
@@ -1245,7 +1256,6 @@ function populateTimetableUI(slotsData) {
     }
 }
 
-// Fetches all 5 days for the selected batch/semester and populates the overview matrix
 async function fetchWeeklyMatrix() {
     const batchSelect = document.getElementById("overview-tt-batch-select");
     const semesterSelect = document.getElementById("overview-tt-semester-select");
@@ -1261,9 +1271,8 @@ async function fetchWeeklyMatrix() {
         return;
     }
 
-    // Map subject codes to full subject names using active assigned subjects cache
     const subjectNameMap = new Map();
-    (assignedSubjectsCache || []).forEach(item => {
+    (window.assignedSubjectsCache || assignedSubjectsCache || []).forEach(item => {
         if (item.subjectCode) {
             subjectNameMap.set(item.subjectCode, item.subjectName);
         }
@@ -1272,7 +1281,6 @@ async function fetchWeeklyMatrix() {
     const days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
     try {
-        // Fetch timetable for all 5 days in parallel
         const promises = days.map(day =>
             apiFetch(`/api/admin/timetable?batch=${encodeURIComponent(batch)}&semester=${semester}&day=${day}`, 'GET')
                 .catch(() => apiFetch(`/api/timetable?batch=${encodeURIComponent(batch)}&semester=${semester}&day=${day}`, 'GET'))
@@ -1284,12 +1292,10 @@ async function fetchWeeklyMatrix() {
         let matrixHtml = '';
         days.forEach((day, index) => {
             const daySlots = results[index] || [];
-
-            // Map period slots to hour keys (1 to 5)
             const slotMap = {};
+
             if (Array.isArray(daySlots)) {
                 daySlots.forEach(s => {
-                    // Priority: direct subjectName -> cache lookup by subjectCode -> subjectCode fallback
                     const displayName = s.subjectName || subjectNameMap.get(s.subjectCode) || s.subjectCode;
                     slotMap[s.hour] = displayName;
                 });
@@ -1323,7 +1329,6 @@ async function fetchWeeklyMatrix() {
     }
 }
 
-// Dynamically populates all batch dropdowns in the application
 function populateBatchDropdowns(batches) {
     const dropdownConfigs = [
         { id: 'student-batch-filter', defaultLabel: 'All Batches', defaultValue: 'ALL' },
@@ -1367,3 +1372,22 @@ window.fetchTimetable = fetchTimetable;
 window.saveTimetable = saveTimetable;
 window.saveTimetableSchedule = saveTimetable;
 window.exportAdminLogsCSV = exportAdminLogsCSV;
+
+// Global function to toggle password visibility
+window.toggleTeacherPasswordVisibility = function(index) {
+    const el = document.getElementById(`teacher-pwd-${index}`);
+    if (!el) return;
+
+    const raw = el.getAttribute('data-raw-pwd');
+    const masked = el.getAttribute('data-masked-pwd');
+
+    if (el.textContent === masked) {
+        el.textContent = raw;
+        el.classList.add('text-indigo-600', 'font-bold');
+        el.classList.remove('text-slate-600');
+    } else {
+        el.textContent = masked;
+        el.classList.remove('text-indigo-600', 'font-bold');
+        el.classList.add('text-slate-600');
+    }
+};

@@ -19,6 +19,7 @@ object Teachers : Table("teachers") {
     val dateOfBirth = date("date_of_birth")
     val phoneNumber = varchar("phone_number", 20).nullable()
     val department = varchar("department", 50)
+    val password = varchar("password", 255)
 
     override val primaryKey = PrimaryKey(teacherId)
 }

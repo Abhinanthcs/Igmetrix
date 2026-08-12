@@ -15,27 +15,54 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import org.jetbrains.exposed.sql.SortOrder
+import org.mindrot.jbcrypt.BCrypt
 
 // --- DTO DEFINITIONS ---
-@Serializable data class CreateStudentRequest(val registerNumber: String, val name: String, val batch: String, val dateOfBirth: String, val phoneNumber: String)
+@Serializable
+data class CreateStudentRequest(
+    val registerNumber: String,
+    val name: String,
+    val batch: String,
+    val dateOfBirth: String,
+    val phoneNumber: String
+)
+
 @Serializable
 data class CreateBatchRequest(
     val startYear: Int,
     val endYear: Int
 )
-@Serializable data class CreateTeacherRequest(val teacherId: String, val name: String, val dateOfBirth: String, val phoneNumber: String)
+
+@Serializable
+data class CreateTeacherRequest(
+    val teacherId: String,
+    val name: String,
+    val dateOfBirth: String,
+    val password: String? = null,
+    val phoneNumber: String? = null
+)
+
 @Serializable data class DeleteStudentRequest(val registerNumber: String)
 @Serializable data class DeleteBatchRequest(val batch: String)
 @Serializable data class DeleteTeacherRequest(val teacherId: String)
 @Serializable data class ActionLogRequest(val id: Int)
 
-@Serializable data class StudentResponse(val registerNumber: String, val name: String, val department: String, val batch: String, val attendancePercentage: Double)
+@Serializable
+data class StudentResponse(
+    val registerNumber: String,
+    val name: String,
+    val department: String,
+    val batch: String,
+    val attendancePercentage: Double
+)
+
 @Serializable
 data class BatchResponse(
     val batch: String,
     val studentCount: Long
 )
-@Serializable data class TeacherResponse(val teacherId: String, val name: String, val dateOfBirth: String, val phoneNumber: String)
+
+@Serializable data class TeacherResponse(val teacherId: String, val name: String, val dateOfBirth: String, val phoneNumber: String,val password: String?)
 @Serializable data class PendingLogResponse(val id: Int, val subjectCode: String, val subjectName: String, val date: String, val hour: Int)
 @Serializable data class ApiResponse(val message: String)
 
@@ -45,6 +72,7 @@ data class SubjectResponse(
     val code: String,
     val name: String
 )
+
 @Serializable
 data class AssignedSubjectDTO(
     val id: Int,
@@ -53,6 +81,7 @@ data class AssignedSubjectDTO(
     val subjectCode: String,
     val subjectName: String
 )
+
 @Serializable
 data class SubjectDTO(
     val code: String,
@@ -129,9 +158,7 @@ fun Application.configureAdminRoutes() {
                             .map { row ->
                                 val regNum = row[Users.registerNumber]
 
-                                val total =
-                                    AttendanceRecords.selectAll().where { AttendanceRecords.registerNumber eq regNum }
-                                        .count()
+                                val total = AttendanceRecords.selectAll().where { AttendanceRecords.registerNumber eq regNum }.count()
                                 val present = AttendanceRecords.selectAll()
                                     .where { (AttendanceRecords.registerNumber eq regNum) and (AttendanceRecords.status eq "P") }
                                     .count()
@@ -329,7 +356,8 @@ fun Application.configureAdminRoutes() {
                                     teacherId = row[Teachers.teacherId],
                                     name = row[Teachers.name],
                                     dateOfBirth = row[Teachers.dateOfBirth].toString(),
-                                    phoneNumber = row[Teachers.phoneNumber] ?: "N/A"
+                                    phoneNumber = row[Teachers.phoneNumber] ?: "N/A",
+                                    password = row[Teachers.password] ?: "N/A"
                                 )
                             }
                     }
@@ -340,29 +368,40 @@ fun Application.configureAdminRoutes() {
                 post("/create-teacher") {
                     val principal = call.principal<JWTPrincipal>()
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
-                    val req = call.receive<CreateTeacherRequest>()
 
                     try {
+                        val req = call.receive<CreateTeacherRequest>()
+
+                        val rawDob = req.dateOfBirth.trim()
                         val parsedDob = try {
-                            LocalDate.parse(req.dateOfBirth.trim())
+                            LocalDate.parse(rawDob)
                         } catch (_: Exception) {
-                            LocalDate.parse(req.dateOfBirth.trim(), DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                            try {
+                                LocalDate.parse(rawDob, DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                            } catch (_: Exception) {
+                                LocalDate.parse(rawDob, DateTimeFormatter.ofPattern("yyyy/MM/dd"))
+                            }
                         }
+
+                        // Hash password inside the endpoint block
+                        val plainPassword = req.password?.takeIf { it.isNotBlank() } ?: rawDob
+                        val hashedPassword = BCrypt.hashpw(plainPassword, BCrypt.gensalt())
 
                         transaction {
                             Teachers.insert {
-                                it[teacherId] = req.teacherId
-                                it[name] = req.name
+                                it[teacherId] = req.teacherId.trim()
+                                it[name] = req.name.trim()
                                 it[Teachers.department] = department
                                 it[dateOfBirth] = parsedDob
-                                it[phoneNumber] = req.phoneNumber
+                                it[phoneNumber] = req.phoneNumber?.trim() ?: "N/A"
+                                it[password] = plainPassword
                             }
                         }
                         call.respond(HttpStatusCode.Created, ApiResponse("Teacher created successfully."))
                     } catch (_: org.jetbrains.exposed.exceptions.ExposedSQLException) {
                         call.respond(HttpStatusCode.Conflict, ApiResponse("Teacher with this ID already exists."))
-                    } catch (_: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, ApiResponse("Invalid date format or teacher details."))
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse("Invalid request: ${e.localizedMessage ?: "Invalid date or teacher details."}"))
                     }
                 }
 
@@ -687,7 +726,7 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // PUT /api/admin/attendance/{id} (Handles RESTful update calls from frontend)
+                // PUT /api/admin/attendance/{id}
                 put("/attendance/{id}") {
                     try {
                         val idParam = call.parameters["id"]?.toIntOrNull()
@@ -733,12 +772,10 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.InternalServerError, ApiResponse("Failed to update attendance status."))
                     }
                 }
+
                 // --- TIMETABLE ROUTES ---
 
-// GET /api/admin/timetable?batch=2024-2027&semester=3
-                // --- TIMETABLE ROUTES ---
-
-// GET /api/admin/timetable?batch=2024-2027&semester=3&day=Monday
+                // GET /api/admin/timetable?batch=2024-2027&semester=3&day=Monday
                 get("/timetable") {
                     try {
                         val batchParam = call.request.queryParameters["batch"]
@@ -753,14 +790,12 @@ fun Application.configureAdminRoutes() {
                             return@get
                         }
 
-                        // If a specific day is requested, use TimetableRepository directly
                         if (!dayParam.isNullOrBlank()) {
                             val slots = TimetableRepository.getTimetableForDay(batchParam, semesterParam, dayParam)
                             call.respond(HttpStatusCode.OK, slots)
                             return@get
                         }
 
-                        // Otherwise fetch full week grouped by day
                         val timetableDays = transaction {
                             Timetables
                                 .leftJoin(Subjects, { Timetables.subjectCode }, { Subjects.code })
@@ -796,12 +831,11 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-// POST /api/admin/timetable
+                // POST /api/admin/timetable
                 post("/timetable") {
                     try {
                         val req = call.receive<SaveTimetableRequest>()
 
-                        // Validate that assigned subjects belong to active semester mappings
                         val activeSubjects = transaction {
                             BatchSubjects
                                 .selectAll()
@@ -822,7 +856,6 @@ fun Application.configureAdminRoutes() {
                             return@post
                         }
 
-                        // Save timetable using repository
                         TimetableRepository.saveTimetableForDay(req)
 
                         call.respond(HttpStatusCode.OK, ApiResponse("Timetable updated successfully."))
