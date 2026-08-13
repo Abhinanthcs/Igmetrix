@@ -17,6 +17,22 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory(token);
 });
 
+// Navigation Drawer Toggle Function
+function toggleMenu() {
+    const drawer = document.getElementById('menuDrawer');
+    const overlay = document.getElementById('menuOverlay');
+
+    if (!drawer || !overlay) return;
+
+    if (drawer.classList.contains('-translate-x-full')) {
+        drawer.classList.remove('-translate-x-full');
+        overlay.classList.remove('hidden');
+    } else {
+        drawer.classList.add('-translate-x-full');
+        overlay.classList.add('hidden');
+    }
+}
+
 async function loadSummary(token) {
     try {
         const response = await fetch('/student/summary', {
@@ -84,6 +100,7 @@ async function loadHistory(token) {
         console.error('Error fetching history:', e);
     }
 }
+
 function renderTodayAttendance(history) {
     const dateEl = document.getElementById('todayDateText');
     const badgeEl = document.getElementById('todaySummaryBadge');
@@ -152,6 +169,7 @@ function renderTodayAttendance(history) {
 
     container.innerHTML = html;
 }
+
 function filterAndRenderHistory(selectedDate = '') {
     const tbody = document.getElementById('historyTableBody');
     if (!tbody) return;
