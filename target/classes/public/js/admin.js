@@ -472,21 +472,42 @@ async function fetchBatches() {
 
 async function fetchSubjects() {
     try {
-        const subjects = await apiFetch('/api/admin/subjects', 'GET');
+        // Fetch subjects catalog and active mappings in parallel
+        const [subjects, assignedSubjects] = await Promise.all([
+            apiFetch('/api/admin/subjects', 'GET').catch(() => []),
+            apiFetch('/api/admin/assigned-subjects', 'GET').catch(() => [])
+        ]);
+
+        // Keep local cache updated
+        window.assignedSubjectsCache = assignedSubjects;
+        const linkedCodes = new Set((assignedSubjects || []).map(a => a.subjectCode));
 
         const tbody = document.getElementById('subject-table-body');
         if (tbody) {
             tbody.innerHTML = (subjects && subjects.length > 0)
-                ? subjects.map(s => `
-                    <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(s.code)}</td>
-                        <td class="py-3 px-6 text-slate-700">${escapeHtml(s.name)}</td>
-                        <td class="py-3 px-6 text-right">
-                            <span class="px-2 py-1 bg-green-500/10 text-green-600 rounded text-[10px] font-bold font-mono">ACTIVE</span>
-                        </td>
-                    </tr>
-                `).join('')
-                : `<tr><td colspan="3" class="py-4 text-center text-slate-400 italic">No subjects in catalog.</td></tr>`;
+                ? subjects.map(s => {
+                    const isLinked = linkedCodes.has(s.code);
+                    return `
+                        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                            <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(s.code)}</td>
+                            <td class="py-3 px-6 text-slate-700">${escapeHtml(s.name)}</td>
+                            <td class="py-3 px-6">
+                                <span class="px-2 py-1 bg-green-500/10 text-green-600 rounded text-[10px] font-bold font-mono">ACTIVE</span>
+                            </td>
+                            <td class="py-3 px-6 text-right">
+                                ${isLinked ? `
+                                    <span class="text-slate-400 text-xs italic font-semibold cursor-not-allowed" title="Unlink this subject from Active Semester Mappings above to delete">Linked</span>
+                                ` : `
+                                    <button onclick="deleteSubject('${escapeHtml(s.code)}')"
+                                            class="text-red-600 hover:text-red-800 font-bold text-xs transition-colors cursor-pointer">
+                                        Delete
+                                    </button>
+                                `}
+                            </td>
+                        </tr>
+                    `;
+                }).join('')
+                : `<tr><td colspan="4" class="py-4 text-center text-slate-400 italic">No subjects in catalog.</td></tr>`;
         }
 
         const assignSelect = document.getElementById('assign-subject-select');
@@ -500,6 +521,23 @@ async function fetchSubjects() {
     }
 }
 
+async function deleteSubject(subjectCode) {
+    if (!confirm(`Are you sure you want to remove subject "${subjectCode}" from the catalog?`)) {
+        return;
+    }
+
+    try {
+        // Send single DELETE request to admin endpoint
+        const res = await apiFetch(`/api/admin/subjects/${encodeURIComponent(subjectCode)}`, 'DELETE');
+        showAlert(res?.message || "Subject removed successfully!");
+
+        // Refresh catalog table
+        await fetchSubjects();
+    } catch (error) {
+        console.error("Error deleting subject:", error);
+        showAlert(error.message || "Failed to delete subject.", true);
+    }
+}
 // --- DYNAMIC SUBJECT DROPDOWN POPULATION ---
 
 async function populateSubjectFilter() {
@@ -514,7 +552,8 @@ async function populateSubjectFilter() {
         let subjects = [];
 
         if (selectedBatch !== 'ALL' || selectedSemester !== 'ALL') {
-            const filteredMappings = assignedSubjectsCache.filter(item => {
+            const cache = window.assignedSubjectsCache || [];
+            const filteredMappings = cache.filter(item => {
                 const matchBatch = selectedBatch === 'ALL' || String(item.batch) === String(selectedBatch);
                 const matchSem = selectedSemester === 'ALL' || String(item.semester) === String(selectedSemester);
                 return matchBatch && matchSem;
@@ -551,6 +590,30 @@ async function populateSubjectFilter() {
         }
     } catch (err) {
         console.error('Failed to populate subject filter:', err);
+    }
+}
+
+async function unlinkSubject(assignmentId) {
+    if (!confirm("Are you sure you want to unlink this subject from the batch?")) {
+        return;
+    }
+
+    try {
+        const res = await apiFetch(`/api/admin/assigned-subjects/${assignmentId}`, 'DELETE');
+        showAlert(res?.message || "Subject unlinked successfully!");
+
+        // Refresh assigned subjects table if function exists
+        if (typeof window.fetchAssignedSubjects === 'function') {
+            await window.fetchAssignedSubjects();
+        } else if (typeof window.loadAssignedSubjects === 'function') {
+            await window.loadAssignedSubjects();
+        }
+
+        // Re-fetch catalog pool to toggle "Linked" badge back to "Delete" button
+        await fetchSubjects();
+    } catch (err) {
+        console.error("Error unlinking subject:", err);
+        showAlert(`Failed to unlink subject: ${err.message}`, true);
     }
 }
 
@@ -1372,6 +1435,10 @@ window.fetchTimetable = fetchTimetable;
 window.saveTimetable = saveTimetable;
 window.saveTimetableSchedule = saveTimetable;
 window.exportAdminLogsCSV = exportAdminLogsCSV;
+window.fetchSubjects = fetchSubjects;
+window.deleteSubject = deleteSubject;
+window.populateSubjectFilter = populateSubjectFilter;
+window.unlinkSubject = unlinkSubject;
 
 // Global function to toggle password visibility
 window.toggleTeacherPasswordVisibility = function(index) {

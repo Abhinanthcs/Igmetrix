@@ -494,7 +494,7 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // POST /api/admin/subjects
+// POST /api/admin/subjects
                 post("/subjects") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
@@ -528,7 +528,59 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // POST /api/admin/batches/assign-subject
+                // DELETE /api/admin/subjects/{code}
+                delete("/subjects/{code}") {
+                    try {
+                        val principal = call.principal<JWTPrincipal>()
+                        val adminDepartment = principal?.payload?.getClaim("department")?.asString()
+                            ?: return@delete call.respond(
+                                HttpStatusCode.Unauthorized,
+                                ApiResponse("Department missing from token payload.")
+                            )
+
+                        val subjectCode = call.parameters["code"]?.trim()
+                        if (subjectCode.isNullOrEmpty()) {
+                            return@delete call.respond(
+                                HttpStatusCode.BadRequest,
+                                ApiResponse("Subject code required.")
+                            )
+                        }
+
+                        // Check if the subject is currently assigned to any batch/semester
+                        val isLinked = transaction {
+                            BatchSubjects.selectAll()
+                                .where { BatchSubjects.subjectCode eq subjectCode }
+                                .count() > 0
+                        }
+
+                        if (isLinked) {
+                            return@delete call.respond(
+                                HttpStatusCode.Conflict,
+                                ApiResponse("Cannot delete subject because it is linked to active semester mappings. Unlink it first!")
+                            )
+                        }
+
+                        val deletedRows = transaction {
+                            Subjects.deleteWhere {
+                                (code eq subjectCode) and (department eq adminDepartment)
+                            }
+                        }
+
+                        if (deletedRows > 0) {
+                            call.respond(HttpStatusCode.OK, ApiResponse("Subject removed successfully."))
+                        } else {
+                            call.respond(HttpStatusCode.NotFound, ApiResponse("Subject not found or unauthorized."))
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ApiResponse(e.message ?: "Failed to delete subject.")
+                        )
+                    }
+                }
+
+// POST /api/admin/batches/assign-subject
                 post("/batches/assign-subject") {
                     try {
                         val req = call.receive<AssignSubjectRequest>()
@@ -551,7 +603,7 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // GET /api/admin/assigned-subjects
+// GET /api/admin/assigned-subjects
                 get("/assigned-subjects") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
@@ -587,7 +639,7 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // DELETE /api/admin/assigned-subjects/{id}
+// DELETE /api/admin/assigned-subjects/{id}
                 delete("/assigned-subjects/{id}") {
                     try {
                         val assignmentId = call.parameters["id"]?.toIntOrNull()
@@ -614,7 +666,7 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // GET /api/admin/batches/{batch}/semester/{sem}/subjects
+// GET /api/admin/batches/{batch}/semester/{sem}/subjects
                 get("/batches/{batch}/semester/{sem}/subjects") {
                     try {
                         val batchName = call.parameters["batch"]
