@@ -77,11 +77,81 @@ async function loadHistory(token) {
         // Process and render subject-wise breakdown from attendance history
         renderSubjectBreakdown(allHistoryCache);
 
+        // Process and render today's attendance circle indicators
+        renderTodayAttendance(allHistoryCache);
+
     } catch (e) {
         console.error('Error fetching history:', e);
     }
 }
+function renderTodayAttendance(history) {
+    const dateEl = document.getElementById('todayDateText');
+    const badgeEl = document.getElementById('todaySummaryBadge');
+    const container = document.getElementById('todayHoursContainer');
 
+    if (!container) return;
+
+    const todayObj = new Date();
+    // Local date formatted string (e.g. "2026-04-12")
+    const year = todayObj.getFullYear();
+    const month = String(todayObj.getMonth() + 1).padStart(2, '0');
+    const day = String(todayObj.getDate()).padStart(2, '0');
+    const todayIso = `${year}-${month}-${day}`;
+
+    if (dateEl) {
+        dateEl.innerText = todayObj.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+
+    // Filter attendance entries for today
+    const todayRecords = (history || []).filter(item => item.date === todayIso);
+
+    // Map hour status for hours 1 to 5
+    const hourMap = {};
+    todayRecords.forEach(r => {
+        const h = parseInt(String(r.hour || '').replace(/\D/g, '') || 0, 10);
+        if (h > 0) hourMap[h] = r.status;
+    });
+
+    let presentCount = 0;
+    let totalClassesToday = 0;
+    const maxHours = 5; // Set to strictly 5 hours
+    let html = '';
+
+    for (let h = 1; h <= maxHours; h++) {
+        const status = hourMap[h] ? String(hourMap[h]).toUpperCase() : null;
+
+        // Default: Unmarked / No Class
+        let circleClass = 'bg-slate-50 border-slate-200 text-slate-400';
+
+        if (status === 'P' || status === 'PRESENT') {
+            circleClass = 'bg-emerald-100 border-emerald-400 text-emerald-700 font-bold';
+            presentCount++;
+            totalClassesToday++;
+        } else if (status === 'L' || status === 'LATE') {
+            circleClass = 'bg-amber-100 border-amber-400 text-amber-700 font-bold';
+            totalClassesToday++;
+        } else if (status === 'A' || status === 'ABSENT') {
+            circleClass = 'bg-rose-100 border-rose-400 text-rose-700 font-bold';
+            totalClassesToday++;
+        }
+
+        html += `
+            <div class="flex-shrink-0 w-12 h-12 rounded-full border-2 flex items-center justify-center ${circleClass} shadow-sm text-xs font-semibold transition-all">
+                ${h} hr
+            </div>
+        `;
+    }
+
+    if (badgeEl) {
+        badgeEl.innerText = `${presentCount}/${totalClassesToday}`;
+    }
+
+    container.innerHTML = html;
+}
 function filterAndRenderHistory(selectedDate = '') {
     const tbody = document.getElementById('historyTableBody');
     if (!tbody) return;

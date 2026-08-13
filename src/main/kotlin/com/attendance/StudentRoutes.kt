@@ -13,6 +13,7 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @Serializable
 data class StudentSummaryResponse(
@@ -40,6 +41,19 @@ data class AttendanceRecordResponse(
     val date: String,
     val hour: Int,
     val status: String
+)
+
+@Serializable
+data class PeriodAttendance(
+    val hour: Int,
+    val status: String
+)
+
+@Serializable
+data class TodayAttendanceResponse(
+    val date: String,
+    val summary: String,
+    val periods: List<PeriodAttendance>
 )
 
 fun Route.configureStudentRoutes() {
@@ -122,6 +136,47 @@ fun Route.configureStudentRoutes() {
             }
 
             call.respond(HttpStatusCode.OK, history)
+        }
+
+        // GET Today's Attendance Endpoint
+        get("/student/today") {
+            val principal = call.principal<JWTPrincipal>()
+            val registerNum = principal?.payload?.getClaim("registerNumber")?.asString()
+
+            if (registerNum == null) {
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid token context"))
+                return@get
+            }
+
+            val todayDate = LocalDate.now()
+
+            val response = transaction {
+                val todayRecords = AttendanceRecords.selectAll().where {
+                    AttendanceRecords.registerNumber eq registerNum
+                }.filter {
+                    it[AttendanceRecords.date] == todayDate
+                }
+
+                val periods = todayRecords.map { row ->
+                    PeriodAttendance(
+                        hour = row[AttendanceRecords.hour],
+                        status = row[AttendanceRecords.status]
+                    )
+                }.sortedBy { it.hour }
+
+                val presentCount = periods.count { it.status == "P" || it.status == "PRESENT" }
+                val totalToday = periods.size
+
+                val formattedDate = todayDate.format(DateTimeFormatter.ofPattern("EEEE, MMMM d"))
+
+                TodayAttendanceResponse(
+                    date = formattedDate,
+                    summary = "$presentCount/$totalToday",
+                    periods = periods
+                )
+            }
+
+            call.respond(HttpStatusCode.OK, response)
         }
 
         // GET Attendance Summary

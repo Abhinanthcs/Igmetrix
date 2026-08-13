@@ -35,7 +35,7 @@
                 margin-top: 0 !important;
                 padding: 0 !important;
             }
-            .card, .subject-breakdown-section, .bunk-calculator-section, .history-section {
+            .card, .today-attendance-section, .subject-breakdown-section, .bunk-calculator-section, .history-section {
                 box-shadow: none !important;
                 border: 1px solid #e2e8f0 !important;
             }
@@ -90,6 +90,22 @@
         <div class="card bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center col-span-2 sm:col-span-1">
             <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Attendance</h3>
             <p id="attendancePerc" class="text-lg font-bold text-indigo-600">0%</p>
+        </div>
+    </section>
+
+    <!-- TODAY'S ATTENDANCE SECTION -->
+    <section class="today-attendance-section bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900 tracking-wide uppercase">Today's Attendance</h3>
+                <p id="todayDateText" class="text-xs text-slate-500 font-medium mt-0.5">Loading date...</p>
+            </div>
+            <div id="todaySummaryBadge" class="px-3 py-1 bg-slate-100 text-slate-700 font-mono font-bold text-xs rounded-full border border-slate-200">
+                0/0
+            </div>
+        </div>
+        <div id="todayHoursContainer" class="flex items-center gap-3 overflow-x-auto pb-1">
+            <p class="text-xs text-slate-400 italic">Loading today's attendance...</p>
         </div>
     </section>
 
