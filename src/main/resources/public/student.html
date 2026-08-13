@@ -49,27 +49,27 @@
 
 <!-- Top Sticky Mobile-First Navbar -->
 <nav class="sticky top-0 z-50 bg-slate-900 text-white shadow-md border-b border-slate-800">
-    <div class="px-4 py-4 max-w-4xl mx-auto flex justify-between items-center">
+    <div class="px-4 py-3.5 max-w-4xl mx-auto flex justify-between items-center">
         <div class="flex items-center space-x-3">
             <!-- Hamburger Menu Button -->
-            <button onclick="toggleMenu()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 focus:outline-none transition-colors" aria-label="Open Menu">
+            <button onclick="toggleMenu()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 focus:outline-none transition-colors border border-slate-700" aria-label="Open Menu">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
             </button>
-            <div class="flex items-center space-x-2">
-                <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                <h2 class="text-sm font-bold tracking-wider uppercase">Student Attendance Dashboard</h2>
+            <div onclick="showDashboardView()" class="flex items-center space-x-2 cursor-pointer">
+                <span class="relative flex h-2.5 w-2.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <h2 class="text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-100">Student Attendance Dashboard</h2>
             </div>
         </div>
-        <button onclick="logout()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-md text-slate-300 font-medium transition-colors">
-            Logout
-        </button>
     </div>
 </nav>
 
 <!-- Slide-over Drawer Backdrop Overlay -->
-<div id="menuOverlay" onclick="toggleMenu()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden transition-opacity"></div>
+<div id="menuOverlay" onclick="toggleMenu()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden transition-opacity"></div>
 
 <!-- Slide-over Drawer Menu -->
 <aside id="menuDrawer" class="fixed top-0 left-0 bottom-0 w-64 bg-slate-900 text-white z-50 transform -translate-x-full transition-transform duration-300 ease-in-out shadow-2xl flex flex-col justify-between">
@@ -79,7 +79,7 @@
                 <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
                 <span class="font-bold text-xs tracking-wider uppercase text-slate-200">Menu Navigation</span>
             </div>
-            <button onclick="toggleMenu()" class="p-1 text-slate-400 hover:text-white rounded-md">
+            <button onclick="toggleMenu()" class="p-1 text-slate-400 hover:text-white rounded-md transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -91,38 +91,38 @@
             <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
                 Attendance
             </div>
-            <nav class="space-y-1">
-                <a href="#todayAttendanceSection" onclick="toggleMenu()" class="flex items-center px-3 py-2 text-xs font-semibold rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+            <nav class="space-y-1.5">
+                <button onclick="showDashboardView('#todayAttendanceSection')" class="w-full text-left flex items-center px-3 py-2.5 text-xs font-semibold rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-all border border-transparent hover:border-slate-700">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Today's Attendance
-                </a>
-                <a href="#subjectBreakdownSection" onclick="toggleMenu()" class="flex items-center px-3 py-2 text-xs font-semibold rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+                </button>
+                <button onclick="showDashboardView('#subjectBreakdownSection')" class="w-full text-left flex items-center px-3 py-2.5 text-xs font-semibold rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-all border border-transparent hover:border-slate-700">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
                     Subject Breakdown
-                </a>
-                <a href="#bunkCalculatorSection" onclick="toggleMenu()" class="flex items-center px-3 py-2 text-xs font-semibold rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+                </button>
+                <button onclick="showDashboardView('#bunkCalculatorSection')" class="w-full text-left flex items-center px-3 py-2.5 text-xs font-semibold rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-all border border-transparent hover:border-slate-700">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                     </svg>
                     Target Simulator
-                </a>
-                <a href="#historySection" onclick="toggleMenu()" class="flex items-center px-3 py-2 text-xs font-semibold rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+                </button>
+                <button onclick="showHistoryView()" class="w-full text-left flex items-center px-3 py-2.5 text-xs font-semibold rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-all border border-transparent hover:border-slate-700">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                     Attendance History
-                </a>
+                </button>
             </nav>
         </div>
     </div>
 
-    <!-- Drawer Footer -->
-    <div class="p-4 border-t border-slate-800">
-        <button onclick="logout()" class="w-full flex items-center justify-center px-3 py-2 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 font-semibold text-xs rounded-lg border border-rose-500/20 transition-colors">
+    <!-- Drawer Footer High-Contrast Logout Button -->
+    <div class="p-4 border-t border-slate-800 bg-slate-900/50">
+        <button onclick="logout()" class="w-full flex items-center justify-center px-3 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs rounded-lg transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-slate-900">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
@@ -134,90 +134,129 @@
 <!-- Main Container Layout -->
 <main class="dashboard-container max-w-4xl mx-auto px-4 mt-6 space-y-6">
 
-    <!-- Global Eligibility / Threshold Warning Alert Banner (Hidden by default) -->
-    <div id="eligibilityAlert" class="hidden p-4 rounded-xl text-xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-700 flex items-center justify-between">
-        <span id="eligibilityText">Warning: Overall attendance is below the 75% minimum eligibility requirement.</span>
-        <span class="px-2 py-0.5 bg-amber-500/20 rounded font-mono text-[10px]">ATTENTION</span>
+    <!-- MAIN DASHBOARD CONTENT WRAPPER -->
+    <div id="mainDashboardContent" class="space-y-6">
+        <!-- Global Eligibility / Threshold Warning Alert Banner (Hidden by default) -->
+        <div id="eligibilityAlert" class="hidden p-4 rounded-xl text-xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-800 flex items-center justify-between shadow-sm">
+            <div class="flex items-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span id="eligibilityText">Warning: Overall attendance is below the 75% minimum eligibility requirement.</span>
+            </div>
+            <span class="px-2 py-0.5 bg-amber-500/20 text-amber-900 rounded font-mono text-[10px] uppercase font-bold tracking-wide">Attention</span>
+        </div>
+
+        <!-- Summary Metrics Cards Grid -->
+        <section class="summary-cards grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3.5">
+            <div class="card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200/80 text-center flex flex-col justify-between">
+                <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Register Number</h3>
+                <p id="regNum" class="text-sm sm:text-base font-bold text-slate-900 truncate font-mono" title="-">-</p>
+            </div>
+            <div class="card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200/80 text-center flex flex-col justify-between">
+                <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Total Classes</h3>
+                <p id="totalClasses" class="text-xl font-bold text-slate-900">0</p>
+            </div>
+            <div class="card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200/80 text-center flex flex-col justify-between">
+                <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Present</h3>
+                <p id="presentCount" class="text-xl font-bold text-emerald-600">0</p>
+            </div>
+            <div class="card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200/80 text-center flex flex-col justify-between">
+                <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Absent</h3>
+                <p id="absentCount" class="text-xl font-bold text-rose-600">0</p>
+            </div>
+            <div class="card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200/80 text-center col-span-2 sm:col-span-1 flex flex-col justify-between">
+                <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Attendance</h3>
+                <p id="attendancePerc" class="text-xl font-bold transition-colors duration-200 text-indigo-600">0%</p>
+            </div>
+        </section>
+
+        <!-- TODAY'S ATTENDANCE SECTION -->
+        <section id="todayAttendanceSection" class="today-attendance-section bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200/80 space-y-4">
+            <div class="flex flex-wrap gap-2 justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="text-xs sm:text-sm font-bold text-slate-900 tracking-wide uppercase">Today's Attendance</h3>
+                    <p id="todayDateText" class="text-xs text-slate-500 font-medium mt-0.5">Loading date...</p>
+                </div>
+                <div id="todaySummaryBadge" class="px-3 py-1 bg-slate-100 text-slate-700 font-mono font-bold text-xs rounded-full border border-slate-200">
+                    0/0
+                </div>
+            </div>
+
+            <div id="todayHoursContainer" class="flex items-center gap-3 overflow-x-auto pb-2 pt-1">
+                <p class="text-xs text-slate-400 italic">Loading today's attendance...</p>
+            </div>
+
+            <!-- Attendance Legend -->
+            <div class="pt-2 border-t border-slate-100 flex items-center justify-end space-x-4 text-[11px] font-medium text-slate-500">
+                <div class="flex items-center space-x-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                    <span>Present</span>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+                    <span>Absent</span>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+                    <span>Late</span>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-slate-200 border border-slate-300 inline-block"></span>
+                    <span>Unmarked</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Subject-Wise Attendance Progress Section -->
+        <section id="subjectBreakdownSection" class="subject-breakdown-section bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200/80 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-xs sm:text-sm font-bold text-slate-900 tracking-wide uppercase">Subject-Wise Breakdown</h3>
+                <span class="text-xs text-slate-400 font-semibold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Target: 75%</span>
+            </div>
+            <div id="subjectBreakdownContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <p class="text-xs text-slate-400 italic col-span-2">Loading subject progress...</p>
+            </div>
+        </section>
+
+        <!-- Attendance Bunk & Attendance Goal Simulator Section -->
+        <section id="bunkCalculatorSection" class="bunk-calculator-section bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200/80 space-y-3">
+            <div class="flex items-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <h3 class="text-xs sm:text-sm font-bold text-slate-900 tracking-wide uppercase">Attendance Target Simulator</h3>
+            </div>
+            <div id="calculatorAdvice" class="p-3.5 bg-slate-50 border border-slate-200/80 rounded-lg text-xs font-medium text-slate-700 leading-relaxed shadow-inner">
+                Calculating attendance projection status...
+            </div>
+        </section>
     </div>
 
-    <!-- Summary Metrics Cards Grid -->
-    <section class="summary-cards grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-        <div class="card bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
-            <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Register Number</h3>
-            <p id="regNum" class="text-lg font-bold text-slate-900">-</p>
-        </div>
-        <div class="card bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
-            <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Classes</h3>
-            <p id="totalClasses" class="text-lg font-bold text-slate-900">0</p>
-        </div>
-        <div class="card bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
-            <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Present</h3>
-            <p id="presentCount" class="text-lg font-bold text-emerald-600">0</p>
-        </div>
-        <div class="card bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
-            <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Absent</h3>
-            <p id="absentCount" class="text-lg font-bold text-rose-600">0</p>
-        </div>
-        <div class="card bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center col-span-2 sm:col-span-1">
-            <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Attendance</h3>
-            <p id="attendancePerc" class="text-lg font-bold text-indigo-600">0%</p>
-        </div>
-    </section>
-
-    <!-- TODAY'S ATTENDANCE SECTION -->
-    <section id="todayAttendanceSection" class="today-attendance-section bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
-        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-            <div>
-                <h3 class="text-sm font-bold text-slate-900 tracking-wide uppercase">Today's Attendance</h3>
-                <p id="todayDateText" class="text-xs text-slate-500 font-medium mt-0.5">Loading date...</p>
+    <!-- History Data Table (Hidden by default) -->
+    <section id="historySection" class="history-section bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden hidden">
+        <div class="p-4 border-b border-slate-100 flex flex-wrap gap-2 justify-between items-center bg-slate-50/50">
+            <div class="flex items-center space-x-3">
+                <button onclick="showDashboardView()" class="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md text-xs font-semibold flex items-center transition-colors">
+                    ← Back to Dashboard
+                </button>
+                <h3 class="text-xs sm:text-sm font-bold text-slate-900 tracking-wide uppercase">Attendance History</h3>
             </div>
-            <div id="todaySummaryBadge" class="px-3 py-1 bg-slate-100 text-slate-700 font-mono font-bold text-xs rounded-full border border-slate-200">
-                0/0
-            </div>
-        </div>
-        <div id="todayHoursContainer" class="flex items-center gap-3 overflow-x-auto pb-1">
-            <p class="text-xs text-slate-400 italic">Loading today's attendance...</p>
-        </div>
-    </section>
-
-    <!-- Subject-Wise Attendance Progress Section -->
-    <section id="subjectBreakdownSection" class="subject-breakdown-section bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
-        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-            <h3 class="text-sm font-bold text-slate-900 tracking-wide uppercase">Subject-Wise Breakdown</h3>
-            <span class="text-xs text-slate-400 font-medium">Target: 75%</span>
-        </div>
-        <div id="subjectBreakdownContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <p class="text-xs text-slate-400 italic col-span-2">Loading subject progress...</p>
-        </div>
-    </section>
-
-    <!-- Attendance Bunk & Attendance Goal Simulator Section -->
-    <section id="bunkCalculatorSection" class="bunk-calculator-section bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
-        <h3 class="text-sm font-bold text-slate-900 tracking-wide uppercase">Attendance Target Simulator</h3>
-        <div id="calculatorAdvice" class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 leading-relaxed">
-            Calculating attendance projection status...
-        </div>
-    </section>
-
-    <!-- History Data Table -->
-    <section id="historySection" class="history-section bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="p-4 border-b border-slate-100 flex flex-wrap gap-2 justify-between items-center">
-            <h3 class="text-sm font-bold text-slate-900 tracking-wide uppercase">Attendance History</h3>
             <div class="flex items-center space-x-2">
-                <input type="date" id="historyDateFilter" class="text-xs border border-slate-200 rounded-md px-2 py-1 text-slate-600 focus:outline-none focus:border-indigo-500">
-                <button onclick="exportStudentHistoryCSV()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-md shadow-sm transition-colors flex items-center gap-1.5">
+                <input type="date" id="historyDateFilter" class="text-xs border border-slate-300 rounded-md px-2.5 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-sm">
+                <button onclick="exportStudentHistoryCSV()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-md shadow-sm transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Export CSV
                 </button>
-                <button onclick="window.print()" class="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-md shadow-sm transition-colors flex items-center gap-1.5">
+                <button onclick="window.print()" class="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-md shadow-sm transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-slate-700">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                     Print / PDF
                 </button>
             </div>
         </div>
         <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm text-slate-600">
-                <thead class="bg-slate-50 text-xs text-slate-500 uppercase border-b border-slate-100 font-semibold tracking-wider">
+            <table class="w-full text-left text-xs sm:text-sm text-slate-600">
+                <thead class="bg-slate-50 text-[11px] text-slate-500 uppercase border-b border-slate-100 font-bold tracking-wider">
                 <tr>
                     <th class="px-4 py-3">ID</th>
                     <th class="px-4 py-3">Subject Code</th>
@@ -251,6 +290,79 @@
             overlay.classList.add('hidden');
         }
     }
+
+    function showHistoryView() {
+        document.getElementById('mainDashboardContent')?.classList.add('hidden');
+        document.getElementById('historySection')?.classList.remove('hidden');
+
+        // Close menu if open
+        const drawer = document.getElementById('menuDrawer');
+        if (drawer && !drawer.classList.contains('-translate-x-full')) {
+            toggleMenu();
+        }
+    }
+
+    function showDashboardView(targetSectionId = null) {
+        document.getElementById('historySection')?.classList.add('hidden');
+        document.getElementById('mainDashboardContent')?.classList.remove('hidden');
+
+        // Close menu if open
+        const drawer = document.getElementById('menuDrawer');
+        if (drawer && !drawer.classList.contains('-translate-x-full')) {
+            toggleMenu();
+        }
+
+        if (targetSectionId) {
+            setTimeout(() => {
+                const el = document.querySelector(targetSectionId);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 100);
+        }
+    }
+
+    // Dynamic color handler when percentage updates
+    function updateAttendanceDisplay(percentageValue) {
+        const percElement = document.getElementById('attendancePerc');
+        if (!percElement) return;
+
+        percElement.textContent = `${percentageValue}%`;
+
+        if (percentageValue < 65) {
+            percElement.classList.remove('text-indigo-600', 'text-amber-600');
+            percElement.classList.add('text-rose-600');
+        } else if (percentageValue < 75) {
+            percElement.classList.remove('text-indigo-600', 'text-rose-600');
+            percElement.classList.add('text-amber-600');
+        } else {
+            percElement.classList.remove('text-rose-600', 'text-amber-600');
+            percElement.classList.add('text-indigo-600');
+        }
+    }
+
+    // MutationObserver to automatically switch text color if updated externally in student.js
+    document.addEventListener("DOMContentLoaded", () => {
+        const percElement = document.getElementById('attendancePerc');
+        if (percElement) {
+            const observer = new MutationObserver(() => {
+                const val = parseFloat(percElement.textContent);
+                if (!isNaN(val)) {
+                    if (val < 65) {
+                        percElement.classList.remove('text-indigo-600', 'text-amber-600');
+                        percElement.classList.add('text-rose-600');
+                    } else if (val < 75) {
+                        percElement.classList.remove('text-indigo-600', 'text-rose-600');
+                        percElement.classList.add('text-amber-600');
+                    } else {
+                        percElement.classList.remove('text-rose-600', 'text-amber-600');
+                        percElement.classList.add('text-indigo-600');
+                    }
+                }
+            });
+            observer.observe(percElement, { childList: true, characterData: true, subtree: true });
+        }
+    });
 </script>
 <script src="js/auth.js"></script>
 <script src="js/student.js"></script>

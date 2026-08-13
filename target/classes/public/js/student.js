@@ -53,7 +53,20 @@ async function loadSummary(token) {
         document.getElementById('absentCount').innerText = data.absentCount || 0;
 
         const overallPerc = data.attendancePercentage || 0;
-        document.getElementById('attendancePerc').innerText = `${overallPerc}%`;
+        const percElement = document.getElementById('attendancePerc');
+
+        if (percElement) {
+            percElement.innerText = `${overallPerc}%`;
+
+            // Update color according to percentage threshold
+            if (overallPerc < 65) {
+                percElement.className = 'text-xl font-bold transition-colors duration-200 text-rose-600';
+            } else if (overallPerc < 75) {
+                percElement.className = 'text-xl font-bold transition-colors duration-200 text-amber-600';
+            } else {
+                percElement.className = 'text-xl font-bold transition-colors duration-200 text-indigo-600';
+            }
+        }
 
         // Eligibility alert check (< 75%)
         const alertBanner = document.getElementById('eligibilityAlert');
@@ -109,7 +122,7 @@ function renderTodayAttendance(history) {
     if (!container) return;
 
     const todayObj = new Date();
-    // Local date formatted string (e.g. "2026-04-12")
+    // Local date formatted string (e.g. "2026-08-13")
     const year = todayObj.getFullYear();
     const month = String(todayObj.getMonth() + 1).padStart(2, '0');
     const day = String(todayObj.getDate()).padStart(2, '0');
@@ -145,19 +158,19 @@ function renderTodayAttendance(history) {
         let circleClass = 'bg-slate-50 border-slate-200 text-slate-400';
 
         if (status === 'P' || status === 'PRESENT') {
-            circleClass = 'bg-emerald-100 border-emerald-400 text-emerald-700 font-bold';
+            circleClass = 'bg-emerald-100/80 border-emerald-400 text-emerald-800 font-bold shadow-xs';
             presentCount++;
             totalClassesToday++;
         } else if (status === 'L' || status === 'LATE') {
-            circleClass = 'bg-amber-100 border-amber-400 text-amber-700 font-bold';
+            circleClass = 'bg-amber-100/80 border-amber-400 text-amber-800 font-bold shadow-xs';
             totalClassesToday++;
         } else if (status === 'A' || status === 'ABSENT') {
-            circleClass = 'bg-rose-100 border-rose-400 text-rose-700 font-bold';
+            circleClass = 'bg-rose-100/80 border-rose-400 text-rose-800 font-bold shadow-xs';
             totalClassesToday++;
         }
 
         html += `
-            <div class="flex-shrink-0 w-12 h-12 rounded-full border-2 flex items-center justify-center ${circleClass} shadow-sm text-xs font-semibold transition-all">
+            <div class="flex-shrink-0 w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 flex items-center justify-center ${circleClass} text-xs font-semibold transition-all">
                 ${h} hr
             </div>
         `;
@@ -200,19 +213,19 @@ function filterAndRenderHistory(selectedDate = '') {
     filtered.forEach(item => {
         const isPresent = item.status === 'P' || item.status === 'PRESENT';
         const badgeClass = isPresent
-            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-            : 'bg-rose-50 text-rose-700 border-rose-200';
+            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+            : 'bg-rose-50 text-rose-700 border-rose-200/80';
 
         const row = document.createElement('tr');
-        row.className = 'hover:bg-slate-50 transition-colors';
+        row.className = 'hover:bg-slate-50/80 transition-colors';
         row.innerHTML = `
-            <td class="px-4 py-3">${item.id}</td>
-            <td class="px-4 py-3 font-semibold text-slate-800">${escapeHtml(item.subjectCode)}</td>
-            <td class="px-4 py-3">${escapeHtml(item.subjectName)}</td>
-            <td class="px-4 py-3">${escapeHtml(item.date)}</td>
-            <td class="px-4 py-3">${escapeHtml(String(item.hour))}</td>
+            <td class="px-4 py-3 font-mono text-xs text-slate-400">${item.id}</td>
+            <td class="px-4 py-3 font-bold text-slate-800 tracking-wide">${escapeHtml(item.subjectCode)}</td>
+            <td class="px-4 py-3 text-slate-600">${escapeHtml(item.subjectName)}</td>
+            <td class="px-4 py-3 font-mono text-xs text-slate-500">${escapeHtml(item.date)}</td>
+            <td class="px-4 py-3 text-slate-700 font-semibold">${escapeHtml(String(item.hour))}</td>
             <td class="px-4 py-3">
-                <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded border ${badgeClass}">
+                <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] font-bold rounded border ${badgeClass}">
                     ${isPresent ? 'P' : 'A'}
                 </span>
             </td>
@@ -250,23 +263,35 @@ function renderSubjectBreakdown(history) {
     container.innerHTML = Object.keys(subjectMap).map(code => {
         const sub = subjectMap[code];
         const perc = sub.total > 0 ? Math.round((sub.present / sub.total) * 100) : 0;
-        const isLow = perc < 75;
-        const barColor = isLow ? 'bg-amber-500' : 'bg-emerald-500';
-        const textColor = isLow ? 'text-amber-600' : 'text-emerald-600';
+
+        // Define color tiers: <65% (Red), 65%-74% (Amber), >=75% (Green)
+        let barColor = 'bg-emerald-500';
+        let badgeStyle = 'bg-emerald-100 text-emerald-800';
+        let borderStyle = 'border-slate-200/80';
+
+        if (perc < 65) {
+            barColor = 'bg-rose-500';
+            badgeStyle = 'bg-rose-100 text-rose-800';
+            borderStyle = 'border-l-4 border-l-rose-500 border-slate-200/80';
+        } else if (perc < 75) {
+            barColor = 'bg-amber-500';
+            badgeStyle = 'bg-amber-100 text-amber-800';
+            borderStyle = 'border-l-4 border-l-amber-500 border-slate-200/80';
+        }
 
         return `
-            <div class="p-3 border border-slate-100 rounded-lg bg-slate-50/50 space-y-2">
+            <div class="p-3.5 border ${borderStyle} rounded-lg bg-slate-50/50 space-y-2.5 shadow-xs">
                 <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-xs font-bold text-slate-800">${escapeHtml(code)}</p>
+                        <p class="text-xs font-bold text-slate-800 tracking-wide">${escapeHtml(code)}</p>
                         <p class="text-[11px] text-slate-500 font-medium">${escapeHtml(sub.name)}</p>
                     </div>
-                    <span class="text-xs font-bold font-mono ${textColor}">${perc}%</span>
+                    <span class="text-xs font-bold font-mono px-2 py-0.5 rounded ${badgeStyle}">${perc}%</span>
                 </div>
-                <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                    <div class="${barColor} h-1.5 rounded-full transition-all duration-300" style="width: ${perc}%"></div>
+                <div class="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
+                    <div class="${barColor} h-2 rounded-full transition-all duration-300" style="width: ${perc}%"></div>
                 </div>
-                <p class="text-[10px] text-slate-400 text-right">${sub.present} / ${sub.total} Classes Attended</p>
+                <p class="text-[10px] text-slate-400 text-right font-medium">${sub.present} / ${sub.total} Classes Attended</p>
             </div>
         `;
     }).join('');
@@ -277,6 +302,7 @@ function renderBunkCalculator(present, total) {
     if (!adviceEl) return;
 
     if (total === 0) {
+        adviceEl.className = "p-3.5 bg-slate-50 border border-slate-200/80 rounded-lg text-xs font-medium text-slate-700 leading-relaxed";
         adviceEl.innerHTML = `No classes recorded yet to compute attendance target status.`;
         return;
     }
@@ -287,16 +313,18 @@ function renderBunkCalculator(present, total) {
     if (currentPerc >= target) {
         // Calculate how many future classes can be skipped while staying >= 75%
         const skippable = Math.floor((present - (target / 100) * total) / (target / 100));
+        adviceEl.className = "p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-lg text-xs font-medium text-slate-700 leading-relaxed";
         adviceEl.innerHTML = `
-            You are in the <strong class="text-emerald-600">Safe Zone (${currentPerc.toFixed(1)}%)</strong>.
-            You can skip up to <strong class="text-slate-900">${Math.max(0, skippable)}</strong> upcoming class(es) without falling below the 75% requirement.
+            You are in the <strong class="text-emerald-700 font-bold">Safe Zone (${currentPerc.toFixed(1)}%)</strong>.
+            You can skip up to <strong class="text-slate-900 font-bold">${Math.max(0, skippable)}</strong> upcoming class(es) without falling below the 75% requirement.
         `;
     } else {
         // Calculate how many consecutive classes must be attended to reach 75%
         const needed = Math.ceil(((target / 100) * total - present) / (1 - (target / 100)));
+        adviceEl.className = "p-3.5 bg-amber-50/60 border border-amber-200 rounded-lg text-xs font-medium text-slate-700 leading-relaxed";
         adviceEl.innerHTML = `
-            You are below target at <strong class="text-amber-600">${currentPerc.toFixed(1)}%</strong>.
-            You need to attend the next <strong class="text-indigo-600">${needed}</strong> consecutive class(es) to reach 75% attendance.
+            You are below target at <strong class="text-amber-700 font-bold">${currentPerc.toFixed(1)}%</strong>.
+            You need to attend the next <strong class="text-indigo-600 font-bold">${needed}</strong> consecutive class(es) to reach 75% attendance.
         `;
     }
 }
