@@ -22,7 +22,7 @@
     </script>
     <style>
         @media print {
-            nav, button, input, #eligibilityAlert, #menuDrawer, #menuOverlay {
+            nav, button, input, #eligibilityAlert, #menuDrawer, #menuOverlay, #actionsDropdown {
                 display: none !important;
             }
             body {
@@ -233,32 +233,76 @@
         </section>
     </div>
 
-    <!-- History Data Table (Hidden by default) -->
+    <!-- History Data Table -->
     <section id="historySection" class="history-section bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden hidden">
-        <div class="p-4 border-b border-slate-100 flex flex-wrap gap-2 justify-between items-center bg-slate-50/50">
-            <div class="flex items-center space-x-3">
-                <button onclick="showDashboardView()" class="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md text-xs font-semibold flex items-center transition-colors">
-                    ← Back to Dashboard
+
+        <!-- Header Bar with Centered Title & Clean Actions -->
+        <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+
+            <!-- Left Side: Simple Blue Box Back Button (No animations/text) -->
+            <button
+                    type="button"
+                    onclick="showDashboardView()"
+                    class="flex items-center justify-center w-9 h-9 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors focus:outline-none"
+                    title="Back to Dashboard"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+            </button>
+
+            <!-- Center: ATTENDANCE HISTORY Title -->
+            <h3 class="text-xs sm:text-sm font-bold text-slate-900 tracking-wider uppercase text-center">
+                Attendance History
+            </h3>
+
+            <!-- Right Side: Action Symbol Button with Dropdown -->
+            <div class="relative">
+                <button
+                        type="button"
+                        onclick="toggleActionsDropdown()"
+                        class="p-2 rounded-lg bg-slate-200/80 hover:bg-slate-300/80 text-slate-700 transition-colors focus:outline-none"
+                        aria-label="Options"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                    </svg>
                 </button>
-                <h3 class="text-xs sm:text-sm font-bold text-slate-900 tracking-wide uppercase">Attendance History</h3>
+
+                <!-- Action Options Dropdown Menu -->
+                <div id="actionsDropdown" class="hidden absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 font-medium text-xs text-slate-700">
+                    <button onclick="exportStudentHistoryCSV(); toggleActionsDropdown();" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-indigo-600 font-semibold">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Export CSV
+                    </button>
+                    <button onclick="window.print(); toggleActionsDropdown();" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold border-t border-slate-100">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                        Print / PDF
+                    </button>
+                </div>
             </div>
-            <div class="flex items-center space-x-2">
-                <input type="date" id="historyDateFilter" class="text-xs border border-slate-300 rounded-md px-2.5 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-sm">
-                <button onclick="exportStudentHistoryCSV()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-md shadow-sm transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    Export CSV
-                </button>
-                <button onclick="window.print()" class="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-md shadow-sm transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-slate-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                    Print / PDF
-                </button>
-            </div>
+
         </div>
+
+        <!-- Secondary Controls Bar (View Switcher + Date Picker) -->
+        <div class="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex flex-wrap justify-between items-center gap-2">
+            <div class="inline-flex p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold">
+                <button id="btnViewDetailed" onclick="switchHistoryView('detailed')" class="px-3 py-1 rounded-md text-slate-900 bg-white shadow-xs transition-all">
+                    Detailed View
+                </button>
+                <button id="btnViewMatrix" onclick="switchHistoryView('matrix')" class="px-3 py-1 rounded-md text-slate-600 hover:text-slate-900 transition-all">
+                    Daily
+                </button>
+            </div>
+            <input type="date" id="historyDateFilter" class="text-xs border border-slate-300 rounded-md px-2.5 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-sm">
+        </div>
+
+        <!-- Table View -->
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs sm:text-sm text-slate-600">
-                <thead class="bg-slate-50 text-[11px] text-slate-500 uppercase border-b border-slate-100 font-bold tracking-wider">
+                <thead id="historyTableHead" class="bg-slate-50 text-[11px] text-slate-500 uppercase border-b border-slate-100 font-bold tracking-wider">
                 <tr>
-                    <th class="px-4 py-3">ID</th>
+<!--                    <th class="px-4 py-3">ID</th>-->
                     <th class="px-4 py-3">Subject Code</th>
                     <th class="px-4 py-3">Subject Name</th>
                     <th class="px-4 py-3">Date</th>
@@ -290,6 +334,22 @@
             overlay.classList.add('hidden');
         }
     }
+
+    function toggleActionsDropdown() {
+        const dropdown = document.getElementById('actionsDropdown');
+        if (dropdown) {
+            dropdown.classList.toggle('hidden');
+        }
+    }
+
+    // Close actions dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('actionsDropdown');
+        const button = e.target.closest('button[onclick*="toggleActionsDropdown"]');
+        if (!button && dropdown && !dropdown.classList.contains('hidden')) {
+            dropdown.classList.add('hidden');
+        }
+    });
 
     function showHistoryView() {
         document.getElementById('mainDashboardContent')?.classList.add('hidden');
@@ -341,7 +401,6 @@
         }
     }
 
-    // MutationObserver to automatically switch text color if updated externally in student.js
     document.addEventListener("DOMContentLoaded", () => {
         const percElement = document.getElementById('attendancePerc');
         if (percElement) {

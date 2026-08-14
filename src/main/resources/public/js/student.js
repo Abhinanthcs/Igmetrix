@@ -1,4 +1,5 @@
 let allHistoryCache = [];
+let currentHistoryViewMode = 'detailed'; // State tracker: 'detailed' | 'matrix'
 
 document.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('jwtToken');
@@ -183,9 +184,38 @@ function renderTodayAttendance(history) {
     container.innerHTML = html;
 }
 
+// --- VIEW SWITCHER FUNCTIONALITY ---
+function switchHistoryView(mode) {
+    if (currentHistoryViewMode === mode) return;
+
+    currentHistoryViewMode = mode;
+
+    // Toggle button UI active styles
+    const btnDetailed = document.getElementById('btnViewDetailed');
+    const btnMatrix = document.getElementById('btnViewMatrix');
+
+    if (mode === 'detailed') {
+        btnDetailed?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+        btnDetailed?.classList.remove('text-slate-600');
+
+        btnMatrix?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+        btnMatrix?.classList.add('text-slate-600');
+    } else {
+        btnMatrix?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+        btnMatrix?.classList.remove('text-slate-600');
+
+        btnDetailed?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+        btnDetailed?.classList.add('text-slate-600');
+    }
+
+    const selectedDate = document.getElementById('historyDateFilter')?.value || '';
+    filterAndRenderHistory(selectedDate);
+}
+
 function filterAndRenderHistory(selectedDate = '') {
     const tbody = document.getElementById('historyTableBody');
-    if (!tbody) return;
+    const thead = document.getElementById('historyTableHead');
+    if (!tbody || !thead) return;
 
     tbody.innerHTML = '';
 
@@ -193,14 +223,31 @@ function filterAndRenderHistory(selectedDate = '') {
         ? allHistoryCache.filter(item => item.date === selectedDate)
         : [...allHistoryCache];
 
+    if (currentHistoryViewMode === 'detailed') {
+        renderDetailedHistoryView(thead, tbody, filtered);
+    } else {
+        renderMatrixHistoryView(thead, tbody, filtered);
+    }
+}
+
+function renderDetailedHistoryView(thead, tbody, filtered) {
+    thead.innerHTML = `
+        <tr>
+            <th class="px-4 py-3">ID</th>
+            <th class="px-4 py-3">Subject Code</th>
+            <th class="px-4 py-3">Subject Name</th>
+            <th class="px-4 py-3">Date</th>
+            <th class="px-4 py-3">Hour</th>
+            <th class="px-4 py-3">Status</th>
+        </tr>
+    `;
+
     if (!filtered || filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 italic">No attendance records found.</td></tr>`;
         return;
     }
 
-    // --- MULTI-LEVEL SORTING ---
-    // 1. Date (Descending - Newest first)
-    // 2. Hour (Ascending - Hour 1, Hour 2...)
+    // Sort: Date (Descending), Hour (Ascending)
     filtered.sort((a, b) => {
         const dateDiff = new Date(b.date) - new Date(a.date);
         if (dateDiff !== 0) return dateDiff;
@@ -229,6 +276,79 @@ function filterAndRenderHistory(selectedDate = '') {
                     ${isPresent ? 'P' : 'A'}
                 </span>
             </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function renderMatrixHistoryView(thead, tbody, filtered) {
+    thead.innerHTML = `
+        <tr>
+            <th class="px-4 py-3">Date</th>
+            <th class="px-4 py-3 text-center">Hour 1</th>
+            <th class="px-4 py-3 text-center">Hour 2</th>
+            <th class="px-4 py-3 text-center">Hour 3</th>
+            <th class="px-4 py-3 text-center">Hour 4</th>
+            <th class="px-4 py-3 text-center">Hour 5</th>
+        </tr>
+    `;
+
+    if (!filtered || filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 italic">No attendance records found.</td></tr>`;
+        return;
+    }
+
+    // Group items by date
+    const dateGroupMap = {};
+    filtered.forEach(item => {
+        if (!dateGroupMap[item.date]) {
+            dateGroupMap[item.date] = {};
+        }
+        const hourNum = parseInt(String(item.hour || '').replace(/\D/g, '') || 0, 10);
+        if (hourNum >= 1 && hourNum <= 5) {
+            dateGroupMap[item.date][hourNum] = item;
+        }
+    });
+
+    const dates = Object.keys(dateGroupMap).sort((a, b) => new Date(b) - new Date(a));
+
+    dates.forEach(dateStr => {
+        const dayHours = dateGroupMap[dateStr];
+        let hourCellsHtml = '';
+
+        for (let h = 1; h <= 5; h++) {
+            const record = dayHours[h];
+            if (!record) {
+                hourCellsHtml += `
+                    <td class="px-4 py-3 text-center">
+                        <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] text-slate-300 font-medium rounded border border-slate-100 bg-slate-50/50">-</span>
+                    </td>
+                `;
+            } else {
+                const status = String(record.status || '').toUpperCase();
+                const isPresent = status === 'P' || status === 'PRESENT';
+
+                if (isPresent) {
+                    hourCellsHtml += `
+                        <td class="px-4 py-3 text-center" title="${escapeHtml(record.subjectCode)} - ${escapeHtml(record.subjectName)}">
+                            <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded">P</span>
+                        </td>
+                    `;
+                } else {
+                    hourCellsHtml += `
+                        <td class="px-4 py-3 text-center" title="${escapeHtml(record.subjectCode)} - ${escapeHtml(record.subjectName)}">
+                            <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200/80 rounded">A</span>
+                        </td>
+                    `;
+                }
+            }
+        }
+
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-50/80 transition-colors';
+        row.innerHTML = `
+            <td class="px-4 py-3 font-mono text-xs font-semibold text-slate-800">${escapeHtml(dateStr)}</td>
+            ${hourCellsHtml}
         `;
         tbody.appendChild(row);
     });
