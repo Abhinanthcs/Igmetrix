@@ -239,7 +239,7 @@
         <!-- Header Bar with Centered Title & Clean Actions -->
         <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
 
-            <!-- Left Side: Simple Blue Box Back Button (No animations/text) -->
+            <!-- Left Side: Simple Blue Box Back Button -->
             <button
                     type="button"
                     onclick="showDashboardView()"
@@ -284,7 +284,7 @@
 
         </div>
 
-        <!-- Secondary Controls Bar (View Switcher + Date Picker) -->
+        <!-- Secondary Controls Bar (View Switcher + Dynamic Month Tabs + Date Picker) -->
         <div class="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex flex-wrap justify-between items-center gap-2">
             <div class="inline-flex p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold">
                 <button id="btnViewDetailed" onclick="switchHistoryView('detailed')" class="px-3 py-1 rounded-md text-slate-900 bg-white shadow-xs transition-all">
@@ -294,6 +294,12 @@
                     Daily
                 </button>
             </div>
+
+            <!-- Dynamic Month Filter Pills Container -->
+            <div id="monthTabsContainer" class="flex items-center space-x-1.5 overflow-x-auto max-w-full py-1">
+                <!-- Dynamically generated month pills will render here -->
+            </div>
+
             <input type="date" id="historyDateFilter" class="text-xs border border-slate-300 rounded-md px-2.5 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-sm">
         </div>
 
@@ -302,7 +308,6 @@
             <table class="w-full text-left text-xs sm:text-sm text-slate-600">
                 <thead id="historyTableHead" class="bg-slate-50 text-[11px] text-slate-500 uppercase border-b border-slate-100 font-bold tracking-wider">
                 <tr>
-<!--                    <th class="px-4 py-3">ID</th>-->
                     <th class="px-4 py-3">Subject Code</th>
                     <th class="px-4 py-3">Subject Name</th>
                     <th class="px-4 py-3">Date</th>
@@ -312,7 +317,7 @@
                 </thead>
                 <tbody id="historyTableBody" class="divide-y divide-slate-100 font-medium">
                 <tr>
-                    <td colspan="6" class="px-4 py-8 text-center text-slate-400 italic">Loading history...</td>
+                    <td colspan="5" class="px-4 py-8 text-center text-slate-400 italic">Loading history...</td>
                 </tr>
                 </tbody>
             </table>

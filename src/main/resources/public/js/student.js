@@ -1,5 +1,6 @@
 let allHistoryCache = [];
 let currentHistoryViewMode = 'detailed'; // State tracker: 'detailed' | 'matrix'
+let currentMonthFilter = ''; // Dynamic tracker: e.g. '2026-08' or 'ALL'
 
 document.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('jwtToken');
@@ -101,6 +102,9 @@ async function loadHistory(token) {
         const history = await response.json();
         allHistoryCache = history || [];
 
+        // Build month tabs dynamically up to current date
+        renderDynamicMonthTabs();
+
         // Render history table
         filterAndRenderHistory();
 
@@ -115,6 +119,78 @@ async function loadHistory(token) {
     }
 }
 
+// --- DYNAMIC MONTH TAB GENERATOR ---
+function renderDynamicMonthTabs() {
+    const container = document.getElementById('monthTabsContainer');
+    if (!container) return;
+
+    // Collect all unique YYYY-MM entries from history data
+    const monthKeySet = new Set();
+    allHistoryCache.forEach(item => {
+        if (item.date && item.date.length >= 7) {
+            monthKeySet.add(item.date.substring(0, 7)); // e.g. "2026-08"
+        }
+    });
+
+    // Also include the current month if not present
+    const now = new Date();
+    const currentYrMo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    monthKeySet.add(currentYrMo);
+
+    // Convert to array and sort chronologically (Ascending)
+    const sortedMonthKeys = Array.from(monthKeySet).sort();
+
+    // Default active month to the latest/current month if not set
+    if (!currentMonthFilter || !sortedMonthKeys.includes(currentMonthFilter)) {
+        currentMonthFilter = sortedMonthKeys[sortedMonthKeys.length - 1] || 'ALL';
+    }
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    let html = `
+        <button onclick="selectMonthTab('ALL', this)" class="month-tab px-3 py-1 text-xs font-medium rounded-full transition-colors ${currentMonthFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
+            All
+        </button>
+    `;
+
+    sortedMonthKeys.forEach(yrMo => {
+        const [year, monthNum] = yrMo.split('-');
+        const monthIndex = parseInt(monthNum, 10) - 1;
+        const monthLabel = monthNames[monthIndex] || yrMo;
+
+        const isActive = currentMonthFilter === yrMo;
+        const activeClass = isActive ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900';
+
+        html += `
+            <button onclick="selectMonthTab('${yrMo}', this)" class="month-tab px-3 py-1 text-xs font-medium rounded-full transition-colors ${activeClass}">
+                ${monthLabel}
+            </button>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// --- MONTH FILTER TAB SELECTION ---
+function selectMonthTab(monthKey, element) {
+    currentMonthFilter = monthKey;
+
+    // Reset date picker filter when month pill is clicked
+    const dateInput = document.getElementById('historyDateFilter');
+    if (dateInput) dateInput.value = '';
+
+    // Update button styling
+    document.querySelectorAll('.month-tab').forEach(tab => {
+        tab.className = 'month-tab px-3 py-1 text-xs font-medium rounded-full transition-colors text-slate-600 hover:text-slate-900';
+    });
+
+    if (element) {
+        element.className = 'month-tab px-3 py-1 text-xs font-medium rounded-full transition-colors bg-indigo-600 text-white shadow-xs';
+    }
+
+    filterAndRenderHistory();
+}
+
 function renderTodayAttendance(history) {
     const dateEl = document.getElementById('todayDateText');
     const badgeEl = document.getElementById('todaySummaryBadge');
@@ -123,7 +199,7 @@ function renderTodayAttendance(history) {
     if (!container) return;
 
     const todayObj = new Date();
-    // Local date formatted string (e.g. "2026-08-13")
+    // Local date formatted string (e.g. "2026-08-14")
     const year = todayObj.getFullYear();
     const month = String(todayObj.getMonth() + 1).padStart(2, '0');
     const day = String(todayObj.getDate()).padStart(2, '0');
@@ -219,9 +295,16 @@ function filterAndRenderHistory(selectedDate = '') {
 
     tbody.innerHTML = '';
 
-    let filtered = selectedDate
-        ? allHistoryCache.filter(item => item.date === selectedDate)
-        : [...allHistoryCache];
+    let filtered = [...allHistoryCache];
+
+    // Priority 1: Specific Date Filter selected in Date Picker
+    if (selectedDate) {
+        filtered = filtered.filter(item => item.date === selectedDate);
+    }
+    // Priority 2: Month Filter Tab selected
+    else if (currentMonthFilter && currentMonthFilter !== 'ALL') {
+        filtered = filtered.filter(item => item.date && item.date.startsWith(currentMonthFilter));
+    }
 
     if (currentHistoryViewMode === 'detailed') {
         renderDetailedHistoryView(thead, tbody, filtered);
@@ -233,7 +316,6 @@ function filterAndRenderHistory(selectedDate = '') {
 function renderDetailedHistoryView(thead, tbody, filtered) {
     thead.innerHTML = `
         <tr>
-            <th class="px-4 py-3">ID</th>
             <th class="px-4 py-3">Subject Code</th>
             <th class="px-4 py-3">Subject Name</th>
             <th class="px-4 py-3">Date</th>
@@ -243,7 +325,7 @@ function renderDetailedHistoryView(thead, tbody, filtered) {
     `;
 
     if (!filtered || filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 italic">No attendance records found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400 italic">No attendance records found.</td></tr>`;
         return;
     }
 
@@ -266,7 +348,6 @@ function renderDetailedHistoryView(thead, tbody, filtered) {
         const row = document.createElement('tr');
         row.className = 'hover:bg-slate-50/80 transition-colors';
         row.innerHTML = `
-            <td class="px-4 py-3 font-mono text-xs text-slate-400">${item.id}</td>
             <td class="px-4 py-3 font-bold text-slate-800 tracking-wide">${escapeHtml(item.subjectCode)}</td>
             <td class="px-4 py-3 text-slate-600">${escapeHtml(item.subjectName)}</td>
             <td class="px-4 py-3 font-mono text-xs text-slate-500">${escapeHtml(item.date)}</td>
