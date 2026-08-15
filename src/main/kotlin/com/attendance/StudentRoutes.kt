@@ -10,6 +10,7 @@ import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import java.time.LocalDate
@@ -138,6 +139,42 @@ fun Route.configureStudentRoutes() {
             call.respond(HttpStatusCode.OK, history)
         }
 
+        // GET Single Subject History (/student/subject?code=KUDSC50001)
+        // GET Single Subject History (/student/subject?code=KUDSC50001)
+        get("/student/subject") {
+            val principal = call.principal<JWTPrincipal>()
+            val registerNum = principal?.payload?.getClaim("registerNumber")?.asString()
+            val codeParam = call.request.queryParameters["code"]
+
+            if (registerNum == null) {
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid token context"))
+                return@get
+            }
+
+            if (codeParam.isNullOrBlank()) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Subject code parameter is required"))
+                return@get
+            }
+
+            val subjectHistory = transaction {
+                AttendanceRecords.selectAll().where {
+                    (AttendanceRecords.registerNumber eq registerNum) and (AttendanceRecords.subjectCode eq codeParam)
+                }.map { row ->
+                    AttendanceRecordResponse(
+                        id = row[AttendanceRecords.id],
+                        registerNumber = row[AttendanceRecords.registerNumber],
+                        subjectCode = row[AttendanceRecords.subjectCode],
+                        subjectName = row[AttendanceRecords.subjectName],
+                        date = row[AttendanceRecords.date].toString(),
+                        hour = row[AttendanceRecords.hour],
+                        status = row[AttendanceRecords.status]
+                    )
+                }
+            }
+
+            call.respond(HttpStatusCode.OK, subjectHistory)
+        }
+
         // GET Today's Attendance Endpoint
         get("/student/today") {
             val principal = call.principal<JWTPrincipal>()
@@ -152,9 +189,7 @@ fun Route.configureStudentRoutes() {
 
             val response = transaction {
                 val todayRecords = AttendanceRecords.selectAll().where {
-                    AttendanceRecords.registerNumber eq registerNum
-                }.filter {
-                    it[AttendanceRecords.date] == todayDate
+                    (AttendanceRecords.registerNumber eq registerNum) and (AttendanceRecords.date eq todayDate)
                 }
 
                 val periods = todayRecords.map { row ->

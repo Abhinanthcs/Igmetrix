@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subject Attendance Detail</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 antialiased">
+
+<!-- Top Navigation Bar -->
+<header class="bg-slate-900 text-white shadow-md">
+    <div class="max-w-6xl mx-auto px-4 py-3.5 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <a href="student.html" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors text-slate-300 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+            </a>
+            <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <h1 class="text-sm font-bold tracking-wider uppercase">Student Attendance Dashboard</h1>
+            </div>
+        </div>
+        <button onclick="logout()" class="text-xs font-semibold px-3 py-1.5 rounded-md bg-slate-800 hover:bg-rose-600 transition-colors text-slate-300 hover:text-white">
+            Logout
+        </button>
+    </div>
+</header>
+
+<!-- Main Content Area -->
+<main class="max-w-5xl mx-auto px-4 py-8 space-y-6">
+
+    <!-- Header Card & Breadcrumb -->
+    <div class="bg-white rounded-xl shadow-xs border border-slate-200/80 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="space-y-1">
+            <div class="flex items-center space-x-2">
+                    <span id="subjectCodeHeader" class="text-xs font-mono font-bold px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                        LOADING...
+                    </span>
+<!--                <span class="text-xs text-slate-400 font-medium">&bull; Subject Detail</span>-->
+            </div>
+            <h2 id="subjectNameHeader" class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                Loading Subject Name...
+            </h2>
+        </div>
+<!--        <a href="student.html" class="inline-flex items-center justify-center space-x-2 px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors">-->
+<!--            <span>&larr; Back to Dashboard</span>-->
+<!--        </a>-->
+    </div>
+
+    <!-- 4 Stat Summary Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-1">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total Conducted</p>
+            <p id="totalClasses" class="text-2xl font-bold text-slate-800">0</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-1">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Attended</p>
+            <p id="presentCount" class="text-2xl font-bold text-emerald-600">0</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-1">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Missed</p>
+            <p id="absentCount" class="text-2xl font-bold text-rose-600">0</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-1">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Percentage</p>
+            <p id="attendancePerc" class="text-2xl font-bold text-indigo-600">0%</p>
+        </div>
+    </div>
+
+    <!-- Subject Target Simulator -->
+    <div class="bg-white rounded-xl shadow-xs border border-slate-200/80 p-5 space-y-3">
+        <div class="flex items-center space-x-2">
+            <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Course Attendance Simulator</h3>
+        </div>
+        <div id="calculatorAdvice" class="p-3.5 bg-slate-50 border border-slate-200/80 rounded-lg text-xs font-medium text-slate-600">
+            Calculating course attendance requirements...
+        </div>
+    </div>
+
+    <!-- Subject Session History Table -->
+    <div class="bg-white rounded-xl shadow-xs border border-slate-200/80 overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Session History</h3>
+            <span id="sessionCountBadge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">0 Sessions</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                <tr class="bg-slate-50 border-b border-slate-200/80 text-slate-500 font-semibold uppercase tracking-wider">
+                    <th class="px-4 py-3">Date</th>
+                    <th class="px-4 py-3">Day</th>
+                    <th class="px-4 py-3 text-center">Hour</th>
+                    <th class="px-4 py-3 text-center">Status</th>
+                </tr>
+                </thead>
+                <tbody id="subjectHistoryTableBody" class="divide-y divide-slate-100">
+                <tr>
+                    <td colspan="4" class="px-4 py-8 text-center text-slate-400 italic">
+                        Loading subject sessions...
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<script src="js/subject-detail.js"></script>
+</body>
+</html>

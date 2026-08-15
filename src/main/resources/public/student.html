@@ -13,7 +13,7 @@
                     colors: {
                         slate: {
                             900: '#0F172A',
-                            50: '#F8FAFC'
+                            50: '#FAFAF9'
                         }
                     }
                 }
@@ -22,7 +22,7 @@
     </script>
     <style>
         @media print {
-            nav, button, input, #eligibilityAlert, #menuDrawer, #menuOverlay, #actionsDropdown {
+            nav, button, input, select, #eligibilityAlert, #menuDrawer, #menuOverlay, #actionsDropdown, #filterSortModal {
                 display: none !important;
             }
             body {
@@ -86,7 +86,6 @@
             </button>
         </div>
 
-        <!-- Attendance Section Navigation Group -->
         <div class="space-y-4">
             <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
                 Attendance
@@ -120,7 +119,6 @@
         </div>
     </div>
 
-    <!-- Drawer Footer High-Contrast Logout Button -->
     <div class="p-4 border-t border-slate-800 bg-slate-900/50">
         <button onclick="logout()" class="w-full flex items-center justify-center px-3 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs rounded-lg transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 focus:ring-offset-slate-900">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -136,7 +134,6 @@
 
     <!-- MAIN DASHBOARD CONTENT WRAPPER -->
     <div id="mainDashboardContent" class="space-y-6">
-        <!-- Global Eligibility / Threshold Warning Alert Banner (Hidden by default) -->
         <div id="eligibilityAlert" class="hidden p-4 rounded-xl text-xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-800 flex items-center justify-between shadow-sm">
             <div class="flex items-center space-x-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -147,7 +144,6 @@
             <span class="px-2 py-0.5 bg-amber-500/20 text-amber-900 rounded font-mono text-[10px] uppercase font-bold tracking-wide">Attention</span>
         </div>
 
-        <!-- Summary Metrics Cards Grid -->
         <section class="summary-cards grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3.5">
             <div class="card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200/80 text-center flex flex-col justify-between">
                 <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Register Number</h3>
@@ -171,7 +167,6 @@
             </div>
         </section>
 
-        <!-- TODAY'S ATTENDANCE SECTION -->
         <section id="todayAttendanceSection" class="today-attendance-section bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200/80 space-y-4">
             <div class="flex flex-wrap gap-2 justify-between items-center border-b border-slate-100 pb-3">
                 <div>
@@ -187,7 +182,6 @@
                 <p class="text-xs text-slate-400 italic">Loading today's attendance...</p>
             </div>
 
-            <!-- Attendance Legend -->
             <div class="pt-2 border-t border-slate-100 flex items-center justify-end space-x-4 text-[11px] font-medium text-slate-500">
                 <div class="flex items-center space-x-1.5">
                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
@@ -208,7 +202,6 @@
             </div>
         </section>
 
-        <!-- Subject-Wise Attendance Progress Section -->
         <section id="subjectBreakdownSection" class="subject-breakdown-section bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200/80 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                 <h3 class="text-xs sm:text-sm font-bold text-slate-900 tracking-wide uppercase">Subject-Wise Breakdown</h3>
@@ -219,7 +212,6 @@
             </div>
         </section>
 
-        <!-- Attendance Bunk & Attendance Goal Simulator Section -->
         <section id="bunkCalculatorSection" class="bunk-calculator-section bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200/80 space-y-3">
             <div class="flex items-center space-x-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -233,13 +225,12 @@
         </section>
     </div>
 
-    <!-- History Data Table -->
-    <section id="historySection" class="history-section bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden hidden">
+    <!-- HISTORY SECTION -->
+    <section id="historySection" class="history-section bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden hidden relative">
 
-        <!-- Header Bar with Centered Title & Clean Actions -->
+        <!-- Top Header Bar -->
         <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-
-            <!-- Left Side: Simple Blue Box Back Button -->
+            <!-- Back Button -->
             <button
                     type="button"
                     onclick="showDashboardView()"
@@ -251,12 +242,12 @@
                 </svg>
             </button>
 
-            <!-- Center: ATTENDANCE HISTORY Title -->
+            <!-- Title -->
             <h3 class="text-xs sm:text-sm font-bold text-slate-900 tracking-wider uppercase text-center">
                 Attendance History
             </h3>
 
-            <!-- Right Side: Action Symbol Button with Dropdown -->
+            <!-- Options / Export Dropdown Button -->
             <div class="relative">
                 <button
                         type="button"
@@ -269,9 +260,8 @@
                     </svg>
                 </button>
 
-                <!-- Action Options Dropdown Menu -->
                 <div id="actionsDropdown" class="hidden absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 font-medium text-xs text-slate-700">
-                    <button onclick="exportStudentHistoryCSV(); toggleActionsDropdown();" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-indigo-600 font-semibold">
+                    <button onclick="handleCSVExport(); toggleActionsDropdown();" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-indigo-600 font-semibold">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                         Export CSV
                     </button>
@@ -281,11 +271,11 @@
                     </button>
                 </div>
             </div>
-
         </div>
 
-        <!-- Secondary Controls Bar (View Switcher + Dynamic Month Tabs + Date Picker) -->
+        <!-- Controls Bar with View Switcher, Dynamic Month Tabs & Filter/Sort Popover Button -->
         <div class="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex flex-wrap justify-between items-center gap-2">
+            <!-- View Mode Switcher -->
             <div class="inline-flex p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold">
                 <button id="btnViewDetailed" onclick="switchHistoryView('detailed')" class="px-3 py-1 rounded-md text-slate-900 bg-white shadow-xs transition-all">
                     Detailed View
@@ -297,10 +287,24 @@
 
             <!-- Dynamic Month Filter Pills Container -->
             <div id="monthTabsContainer" class="flex items-center space-x-1.5 overflow-x-auto max-w-full py-1">
-                <!-- Dynamically generated month pills will render here -->
+                <!-- Dynamically generated month pills -->
             </div>
 
-            <input type="date" id="historyDateFilter" class="text-xs border border-slate-300 rounded-md px-2.5 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-sm">
+            <!-- FILTER & SORT BUTTON -->
+            <div>
+                <button
+                        type="button"
+                        onclick="toggleFilterSortModal()"
+                        id="filterSortBtn"
+                        class="flex items-center space-x-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg shadow-xs transition-all focus:outline-none"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    <span>Filter / Sort</span>
+                    <span id="activeFilterBadge" class="hidden w-2 h-2 rounded-full bg-indigo-600"></span>
+                </button>
+            </div>
         </div>
 
         <!-- Table View -->
@@ -326,6 +330,75 @@
 
 </main>
 
+<!-- CENTERED FILTER & SORT MODAL DIALOG -->
+<div id="filterSortModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+    <div class="w-full max-w-sm bg-white border border-slate-200 rounded-xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                Filter & Sort Options
+            </h4>
+            <button onclick="toggleFilterSortModal()" class="text-slate-400 hover:text-slate-600 text-xs font-bold p-1">✕</button>
+        </div>
+
+        <!-- 1. Single Date Filter -->
+        <div class="space-y-1">
+            <label class="block text-[11px] font-bold text-slate-600 uppercase">Single Date</label>
+            <input type="date" id="historySingleDate" class="w-full text-xs border border-slate-300 rounded-md px-2.5 py-1.5 text-slate-700 focus:ring-1 focus:ring-indigo-500 bg-white">
+        </div>
+
+        <!-- 2. Date Range Filter -->
+        <div class="space-y-1">
+            <label class="block text-[11px] font-bold text-slate-600 uppercase">Date Range</label>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <span class="text-[10px] text-slate-400 font-medium">From</span>
+                    <input type="date" id="historyStartDate" class="w-full text-xs border border-slate-300 rounded-md px-2 py-1 text-slate-700 focus:ring-1 focus:ring-indigo-500 bg-white">
+                </div>
+                <div>
+                    <span class="text-[10px] text-slate-400 font-medium">To</span>
+                    <input type="date" id="historyEndDate" class="w-full text-xs border border-slate-300 rounded-md px-2 py-1 text-slate-700 focus:ring-1 focus:ring-indigo-500 bg-white">
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Semester Wise Sort/Filter -->
+        <div class="space-y-1">
+            <label class="block text-[11px] font-bold text-slate-600 uppercase">Semester</label>
+            <select id="historySemesterFilter" class="w-full text-xs border border-slate-300 rounded-md px-2.5 py-1.5 text-slate-700 focus:ring-1 focus:ring-indigo-500 bg-white">
+                <option value="ALL">All Semesters</option>
+                <option value="5">Semester 5</option>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+                <option value="3">Semester 3</option>
+                <option value="4">Semester 4</option>
+                <option value="6">Semester 6</option>
+            </select>
+        </div>
+
+        <!-- 4. Date Sort Order -->
+        <div class="space-y-1">
+            <label class="block text-[11px] font-bold text-slate-600 uppercase">Sort Order</label>
+            <select id="historySortOrder" class="w-full text-xs border border-slate-300 rounded-md px-2.5 py-1.5 text-slate-700 focus:ring-1 focus:ring-indigo-500 bg-white">
+                <option value="DESC">Newest First (Descending)</option>
+                <option value="ASC">Oldest First (Ascending)</option>
+            </select>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+            <button type="button" onclick="resetFilters()" class="w-1/2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors">
+                Reset All
+            </button>
+            <button type="button" onclick="applyFiltersAndClose()" class="w-1/2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors shadow-xs">
+                Apply
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
     function toggleMenu() {
         const drawer = document.getElementById('menuDrawer');
@@ -347,12 +420,32 @@
         }
     }
 
-    // Close actions dropdown when clicking outside
+    function toggleFilterSortModal() {
+        const modal = document.getElementById('filterSortModal');
+        if (modal) {
+            modal.classList.toggle('hidden');
+        }
+    }
+
+    function handleCSVExport() {
+        if (typeof exportStudentHistoryCSV === 'function') {
+            exportStudentHistoryCSV();
+        } else if (typeof exportAttendanceCSV === 'function') {
+            exportAttendanceCSV();
+        }
+    }
+
+    // Close popups when clicking outside
     document.addEventListener('click', (e) => {
-        const dropdown = document.getElementById('actionsDropdown');
-        const button = e.target.closest('button[onclick*="toggleActionsDropdown"]');
-        if (!button && dropdown && !dropdown.classList.contains('hidden')) {
-            dropdown.classList.add('hidden');
+        const actionsDropdown = document.getElementById('actionsDropdown');
+        const actionsBtn = e.target.closest('button[onclick*="toggleActionsDropdown"]');
+        if (!actionsBtn && actionsDropdown && !actionsDropdown.classList.contains('hidden')) {
+            actionsDropdown.classList.add('hidden');
+        }
+
+        const filterModal = document.getElementById('filterSortModal');
+        if (e.target === filterModal) {
+            filterModal.classList.add('hidden');
         }
     });
 
@@ -360,7 +453,6 @@
         document.getElementById('mainDashboardContent')?.classList.add('hidden');
         document.getElementById('historySection')?.classList.remove('hidden');
 
-        // Close menu if open
         const drawer = document.getElementById('menuDrawer');
         if (drawer && !drawer.classList.contains('-translate-x-full')) {
             toggleMenu();
@@ -371,7 +463,6 @@
         document.getElementById('historySection')?.classList.add('hidden');
         document.getElementById('mainDashboardContent')?.classList.remove('hidden');
 
-        // Close menu if open
         const drawer = document.getElementById('menuDrawer');
         if (drawer && !drawer.classList.contains('-translate-x-full')) {
             toggleMenu();
@@ -384,25 +475,6 @@
                     el.scrollIntoView({ behavior: 'smooth' });
                 }
             }, 100);
-        }
-    }
-
-    // Dynamic color handler when percentage updates
-    function updateAttendanceDisplay(percentageValue) {
-        const percElement = document.getElementById('attendancePerc');
-        if (!percElement) return;
-
-        percElement.textContent = `${percentageValue}%`;
-
-        if (percentageValue < 65) {
-            percElement.classList.remove('text-indigo-600', 'text-amber-600');
-            percElement.classList.add('text-rose-600');
-        } else if (percentageValue < 75) {
-            percElement.classList.remove('text-indigo-600', 'text-rose-600');
-            percElement.classList.add('text-amber-600');
-        } else {
-            percElement.classList.remove('text-rose-600', 'text-amber-600');
-            percElement.classList.add('text-indigo-600');
         }
     }
 

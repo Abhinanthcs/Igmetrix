@@ -1,6 +1,15 @@
 let allHistoryCache = [];
 let currentHistoryViewMode = 'detailed'; // State tracker: 'detailed' | 'matrix'
-let currentMonthFilter = ''; // Dynamic tracker: e.g. '2026-08' or 'ALL'
+let currentMonthFilter = ''; // Dynamic month key: e.g. '2026-08' or 'ALL'
+
+// Extended Filter/Sort State
+let filterState = {
+    singleDate: '',
+    startDate: '',
+    endDate: '',
+    semester: 'ALL',
+    sortOrder: 'DESC' // 'DESC' | 'ASC'
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('jwtToken');
@@ -10,30 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    // Attach listener for optional history date filtering
-    document.getElementById('historyDateFilter')?.addEventListener('change', (e) => {
-        filterAndRenderHistory(e.target.value);
-    });
-
     loadSummary(token);
     loadHistory(token);
 });
-
-// Navigation Drawer Toggle Function
-function toggleMenu() {
-    const drawer = document.getElementById('menuDrawer');
-    const overlay = document.getElementById('menuOverlay');
-
-    if (!drawer || !overlay) return;
-
-    if (drawer.classList.contains('-translate-x-full')) {
-        drawer.classList.remove('-translate-x-full');
-        overlay.classList.remove('hidden');
-    } else {
-        drawer.classList.add('-translate-x-full');
-        overlay.classList.add('hidden');
-    }
-}
 
 async function loadSummary(token) {
     try {
@@ -48,7 +36,6 @@ async function loadSummary(token) {
 
         const data = await response.json();
 
-        // Existing DOM assignments
         document.getElementById('regNum').innerText = data.registerNumber || '-';
         document.getElementById('totalClasses').innerText = data.totalClasses || 0;
         document.getElementById('presentCount').innerText = data.presentCount || 0;
@@ -60,7 +47,6 @@ async function loadSummary(token) {
         if (percElement) {
             percElement.innerText = `${overallPerc}%`;
 
-            // Update color according to percentage threshold
             if (overallPerc < 65) {
                 percElement.className = 'text-xl font-bold transition-colors duration-200 text-rose-600';
             } else if (overallPerc < 75) {
@@ -70,7 +56,6 @@ async function loadSummary(token) {
             }
         }
 
-        // Eligibility alert check (< 75%)
         const alertBanner = document.getElementById('eligibilityAlert');
         if (alertBanner) {
             if (overallPerc < 75 && (data.totalClasses || 0) > 0) {
@@ -80,7 +65,6 @@ async function loadSummary(token) {
             }
         }
 
-        // Attendance Target Calculator Simulator
         renderBunkCalculator(data.presentCount || 0, data.totalClasses || 0);
 
     } catch (e) {
@@ -102,16 +86,9 @@ async function loadHistory(token) {
         const history = await response.json();
         allHistoryCache = history || [];
 
-        // Build month tabs dynamically up to current date
         renderDynamicMonthTabs();
-
-        // Render history table
         filterAndRenderHistory();
-
-        // Process and render subject-wise breakdown from attendance history
         renderSubjectBreakdown(allHistoryCache);
-
-        // Process and render today's attendance circle indicators
         renderTodayAttendance(allHistoryCache);
 
     } catch (e) {
@@ -124,23 +101,19 @@ function renderDynamicMonthTabs() {
     const container = document.getElementById('monthTabsContainer');
     if (!container) return;
 
-    // Collect all unique YYYY-MM entries from history data
     const monthKeySet = new Set();
     allHistoryCache.forEach(item => {
         if (item.date && item.date.length >= 7) {
-            monthKeySet.add(item.date.substring(0, 7)); // e.g. "2026-08"
+            monthKeySet.add(item.date.substring(0, 7));
         }
     });
 
-    // Also include the current month if not present
     const now = new Date();
     const currentYrMo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     monthKeySet.add(currentYrMo);
 
-    // Convert to array and sort chronologically (Ascending)
     const sortedMonthKeys = Array.from(monthKeySet).sort();
 
-    // Default active month to the latest/current month if not set
     if (!currentMonthFilter || !sortedMonthKeys.includes(currentMonthFilter)) {
         currentMonthFilter = sortedMonthKeys[sortedMonthKeys.length - 1] || 'ALL';
     }
@@ -171,15 +144,9 @@ function renderDynamicMonthTabs() {
     container.innerHTML = html;
 }
 
-// --- MONTH FILTER TAB SELECTION ---
 function selectMonthTab(monthKey, element) {
     currentMonthFilter = monthKey;
 
-    // Reset date picker filter when month pill is clicked
-    const dateInput = document.getElementById('historyDateFilter');
-    if (dateInput) dateInput.value = '';
-
-    // Update button styling
     document.querySelectorAll('.month-tab').forEach(tab => {
         tab.className = 'month-tab px-3 py-1 text-xs font-medium rounded-full transition-colors text-slate-600 hover:text-slate-900';
     });
@@ -191,104 +158,58 @@ function selectMonthTab(monthKey, element) {
     filterAndRenderHistory();
 }
 
-function renderTodayAttendance(history) {
-    const dateEl = document.getElementById('todayDateText');
-    const badgeEl = document.getElementById('todaySummaryBadge');
-    const container = document.getElementById('todayHoursContainer');
+// --- FILTER & SORT MODAL CONTROLS ---
+function applyFiltersAndClose() {
+    filterState.singleDate = document.getElementById('historySingleDate')?.value || '';
+    filterState.startDate = document.getElementById('historyStartDate')?.value || '';
+    filterState.endDate = document.getElementById('historyEndDate')?.value || '';
+    filterState.semester = document.getElementById('historySemesterFilter')?.value || 'ALL';
+    filterState.sortOrder = document.getElementById('historySortOrder')?.value || 'DESC';
 
-    if (!container) return;
+    updateActiveFilterBadge();
+    filterAndRenderHistory();
 
-    const todayObj = new Date();
-    // Local date formatted string (e.g. "2026-08-14")
-    const year = todayObj.getFullYear();
-    const month = String(todayObj.getMonth() + 1).padStart(2, '0');
-    const day = String(todayObj.getDate()).padStart(2, '0');
-    const todayIso = `${year}-${month}-${day}`;
-
-    if (dateEl) {
-        dateEl.innerText = todayObj.toLocaleDateString('en-US', {
-            weekday: 'long',
-            month: 'long',
-            day: 'numeric'
-        });
-    }
-
-    // Filter attendance entries for today
-    const todayRecords = (history || []).filter(item => item.date === todayIso);
-
-    // Map hour status for hours 1 to 5
-    const hourMap = {};
-    todayRecords.forEach(r => {
-        const h = parseInt(String(r.hour || '').replace(/\D/g, '') || 0, 10);
-        if (h > 0) hourMap[h] = r.status;
-    });
-
-    let presentCount = 0;
-    let totalClassesToday = 0;
-    const maxHours = 5; // Set to strictly 5 hours
-    let html = '';
-
-    for (let h = 1; h <= maxHours; h++) {
-        const status = hourMap[h] ? String(hourMap[h]).toUpperCase() : null;
-
-        // Default: Unmarked / No Class
-        let circleClass = 'bg-slate-50 border-slate-200 text-slate-400';
-
-        if (status === 'P' || status === 'PRESENT') {
-            circleClass = 'bg-emerald-100/80 border-emerald-400 text-emerald-800 font-bold shadow-xs';
-            presentCount++;
-            totalClassesToday++;
-        } else if (status === 'L' || status === 'LATE') {
-            circleClass = 'bg-amber-100/80 border-amber-400 text-amber-800 font-bold shadow-xs';
-            totalClassesToday++;
-        } else if (status === 'A' || status === 'ABSENT') {
-            circleClass = 'bg-rose-100/80 border-rose-400 text-rose-800 font-bold shadow-xs';
-            totalClassesToday++;
-        }
-
-        html += `
-            <div class="flex-shrink-0 w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 flex items-center justify-center ${circleClass} text-xs font-semibold transition-all">
-                ${h} hr
-            </div>
-        `;
-    }
-
-    if (badgeEl) {
-        badgeEl.innerText = `${presentCount}/${totalClassesToday}`;
-    }
-
-    container.innerHTML = html;
+    const modal = document.getElementById('filterSortModal');
+    if (modal) modal.classList.add('hidden');
 }
 
-// --- VIEW SWITCHER FUNCTIONALITY ---
-function switchHistoryView(mode) {
-    if (currentHistoryViewMode === mode) return;
+function resetFilters() {
+    filterState = {
+        singleDate: '',
+        startDate: '',
+        endDate: '',
+        semester: 'ALL',
+        sortOrder: 'DESC'
+    };
 
-    currentHistoryViewMode = mode;
+    if (document.getElementById('historySingleDate')) document.getElementById('historySingleDate').value = '';
+    if (document.getElementById('historyStartDate')) document.getElementById('historyStartDate').value = '';
+    if (document.getElementById('historyEndDate')) document.getElementById('historyEndDate').value = '';
+    if (document.getElementById('historySemesterFilter')) document.getElementById('historySemesterFilter').value = 'ALL';
+    if (document.getElementById('historySortOrder')) document.getElementById('historySortOrder').value = 'DESC';
 
-    // Toggle button UI active styles
-    const btnDetailed = document.getElementById('btnViewDetailed');
-    const btnMatrix = document.getElementById('btnViewMatrix');
+    updateActiveFilterBadge();
+    filterAndRenderHistory();
 
-    if (mode === 'detailed') {
-        btnDetailed?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
-        btnDetailed?.classList.remove('text-slate-600');
+    const modal = document.getElementById('filterSortModal');
+    if (modal) modal.classList.add('hidden');
+}
 
-        btnMatrix?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
-        btnMatrix?.classList.add('text-slate-600');
+function updateActiveFilterBadge() {
+    const badge = document.getElementById('activeFilterBadge');
+    if (!badge) return;
+
+    const hasActiveFilters = filterState.singleDate || filterState.startDate || filterState.endDate || filterState.semester !== 'ALL' || filterState.sortOrder !== 'DESC';
+
+    if (hasActiveFilters) {
+        badge.classList.remove('hidden');
     } else {
-        btnMatrix?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
-        btnMatrix?.classList.remove('text-slate-600');
-
-        btnDetailed?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
-        btnDetailed?.classList.add('text-slate-600');
+        badge.classList.add('hidden');
     }
-
-    const selectedDate = document.getElementById('historyDateFilter')?.value || '';
-    filterAndRenderHistory(selectedDate);
 }
 
-function filterAndRenderHistory(selectedDate = '') {
+// --- FILTER & RENDER HISTORY ---
+function filterAndRenderHistory() {
     const tbody = document.getElementById('historyTableBody');
     const thead = document.getElementById('historyTableHead');
     if (!tbody || !thead) return;
@@ -297,14 +218,46 @@ function filterAndRenderHistory(selectedDate = '') {
 
     let filtered = [...allHistoryCache];
 
-    // Priority 1: Specific Date Filter selected in Date Picker
-    if (selectedDate) {
-        filtered = filtered.filter(item => item.date === selectedDate);
-    }
-    // Priority 2: Month Filter Tab selected
-    else if (currentMonthFilter && currentMonthFilter !== 'ALL') {
+    // 1. Month Pill Filter
+    if (currentMonthFilter && currentMonthFilter !== 'ALL') {
         filtered = filtered.filter(item => item.date && item.date.startsWith(currentMonthFilter));
     }
+
+    // 2. Single Date Filter
+    if (filterState.singleDate) {
+        filtered = filtered.filter(item => item.date === filterState.singleDate);
+    }
+
+    // 3. Date Range Filter
+    if (filterState.startDate) {
+        filtered = filtered.filter(item => item.date >= filterState.startDate);
+    }
+    if (filterState.endDate) {
+        filtered = filtered.filter(item => item.date <= filterState.endDate);
+    }
+
+    // 4. Semester Filter (checks numeric or prefixed formats)
+    if (filterState.semester && filterState.semester !== 'ALL') {
+        const targetSem = filterState.semester.toUpperCase().replace(/^S/, '');
+        filtered = filtered.filter(item => {
+            const itemSem = String(item.semester || item.sem || '').toUpperCase().replace(/^S/, '');
+            const code = String(item.subjectCode || '').toUpperCase();
+            return itemSem === targetSem || code.includes(`S${targetSem}`);
+        });
+    }
+
+    // 5. Date Sort Order
+    filtered.sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        const diff = filterState.sortOrder === 'ASC' ? dateA - dateB : dateB - dateA;
+
+        if (diff !== 0) return diff;
+
+        const hourA = parseInt(String(a.hour || '').replace(/\D/g, '') || 0, 10);
+        const hourB = parseInt(String(b.hour || '').replace(/\D/g, '') || 0, 10);
+        return filterState.sortOrder === 'ASC' ? hourA - hourB : hourB - hourA;
+    });
 
     if (currentHistoryViewMode === 'detailed') {
         renderDetailedHistoryView(thead, tbody, filtered);
@@ -325,19 +278,9 @@ function renderDetailedHistoryView(thead, tbody, filtered) {
     `;
 
     if (!filtered || filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400 italic">No attendance records found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400 italic">No attendance records found matching filters.</td></tr>`;
         return;
     }
-
-    // Sort: Date (Descending), Hour (Ascending)
-    filtered.sort((a, b) => {
-        const dateDiff = new Date(b.date) - new Date(a.date);
-        if (dateDiff !== 0) return dateDiff;
-
-        const hourA = parseInt(String(a.hour || '').replace(/\D/g, '') || 0, 10);
-        const hourB = parseInt(String(b.hour || '').replace(/\D/g, '') || 0, 10);
-        return hourA - hourB;
-    });
 
     filtered.forEach(item => {
         const isPresent = item.status === 'P' || item.status === 'PRESENT';
@@ -375,11 +318,10 @@ function renderMatrixHistoryView(thead, tbody, filtered) {
     `;
 
     if (!filtered || filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 italic">No attendance records found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 italic">No attendance records found matching filters.</td></tr>`;
         return;
     }
 
-    // Group items by date
     const dateGroupMap = {};
     filtered.forEach(item => {
         if (!dateGroupMap[item.date]) {
@@ -391,7 +333,9 @@ function renderMatrixHistoryView(thead, tbody, filtered) {
         }
     });
 
-    const dates = Object.keys(dateGroupMap).sort((a, b) => new Date(b) - new Date(a));
+    const dates = Object.keys(dateGroupMap).sort((a, b) => {
+        return filterState.sortOrder === 'ASC' ? new Date(a) - new Date(b) : new Date(b) - new Date(a);
+    });
 
     dates.forEach(dateStr => {
         const dayHours = dateGroupMap[dateStr];
@@ -399,29 +343,28 @@ function renderMatrixHistoryView(thead, tbody, filtered) {
 
         for (let h = 1; h <= 5; h++) {
             const record = dayHours[h];
-            if (!record) {
+            const status = record ? String(record.status || '').toUpperCase() : '';
+            const isPresent = status === 'P' || status === 'PRESENT';
+            const isAbsent = status === 'A' || status === 'ABSENT';
+
+            if (!record || (!isPresent && !isAbsent)) {
                 hourCellsHtml += `
                     <td class="px-4 py-3 text-center">
                         <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] text-slate-300 font-medium rounded border border-slate-100 bg-slate-50/50">-</span>
                     </td>
                 `;
             } else {
-                const status = String(record.status || '').toUpperCase();
-                const isPresent = status === 'P' || status === 'PRESENT';
+                const tooltipText = `${escapeHtml(record.subjectCode)} - ${escapeHtml(record.subjectName)}`;
+                const badgeClass = isPresent
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80'
+                    : 'text-rose-700 bg-rose-50 border-rose-200/80';
+                const label = isPresent ? 'P' : 'A';
 
-                if (isPresent) {
-                    hourCellsHtml += `
-                        <td class="px-4 py-3 text-center" title="${escapeHtml(record.subjectCode)} - ${escapeHtml(record.subjectName)}">
-                            <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded">P</span>
-                        </td>
-                    `;
-                } else {
-                    hourCellsHtml += `
-                        <td class="px-4 py-3 text-center" title="${escapeHtml(record.subjectCode)} - ${escapeHtml(record.subjectName)}">
-                            <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200/80 rounded">A</span>
-                        </td>
-                    `;
-                }
+                hourCellsHtml += `
+                    <td class="px-4 py-3 text-center" title="${tooltipText}">
+                        <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] font-bold ${badgeClass} border rounded">${label}</span>
+                    </td>
+                `;
             }
         }
 
@@ -435,6 +378,96 @@ function renderMatrixHistoryView(thead, tbody, filtered) {
     });
 }
 
+function switchHistoryView(mode) {
+    if (currentHistoryViewMode === mode) return;
+
+    currentHistoryViewMode = mode;
+
+    const btnDetailed = document.getElementById('btnViewDetailed');
+    const btnMatrix = document.getElementById('btnViewMatrix');
+
+    if (mode === 'detailed') {
+        btnDetailed?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+        btnDetailed?.classList.remove('text-slate-600');
+
+        btnMatrix?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+        btnMatrix?.classList.add('text-slate-600');
+    } else {
+        btnMatrix?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+        btnMatrix?.classList.remove('text-slate-600');
+
+        btnDetailed?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+        btnDetailed?.classList.add('text-slate-600');
+    }
+
+    filterAndRenderHistory();
+}
+
+function renderTodayAttendance(history) {
+    const dateEl = document.getElementById('todayDateText');
+    const badgeEl = document.getElementById('todaySummaryBadge');
+    const container = document.getElementById('todayHoursContainer');
+
+    if (!container) return;
+
+    const todayObj = new Date();
+    const year = todayObj.getFullYear();
+    const month = String(todayObj.getMonth() + 1).padStart(2, '0');
+    const day = String(todayObj.getDate()).padStart(2, '0');
+    const todayIso = `${year}-${month}-${day}`;
+
+    if (dateEl) {
+        dateEl.innerText = todayObj.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+
+    const todayRecords = (history || []).filter(item => item.date === todayIso);
+
+    const hourMap = {};
+    todayRecords.forEach(r => {
+        const h = parseInt(String(r.hour || '').replace(/\D/g, '') || 0, 10);
+        if (h > 0) hourMap[h] = r.status;
+    });
+
+    let presentCount = 0;
+    let totalClassesToday = 0;
+    const maxHours = 5;
+    let html = '';
+
+    for (let h = 1; h <= maxHours; h++) {
+        const status = hourMap[h] ? String(hourMap[h]).toUpperCase() : null;
+
+        let circleClass = 'bg-slate-50 border-slate-200 text-slate-400';
+
+        if (status === 'P' || status === 'PRESENT') {
+            circleClass = 'bg-emerald-100/80 border-emerald-400 text-emerald-800 font-bold shadow-xs';
+            presentCount++;
+            totalClassesToday++;
+        } else if (status === 'L' || status === 'LATE') {
+            circleClass = 'bg-amber-100/80 border-amber-400 text-amber-800 font-bold shadow-xs';
+            totalClassesToday++;
+        } else if (status === 'A' || status === 'ABSENT') {
+            circleClass = 'bg-rose-100/80 border-rose-400 text-rose-800 font-bold shadow-xs';
+            totalClassesToday++;
+        }
+
+        html += `
+            <div class="flex-shrink-0 w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 flex items-center justify-center ${circleClass} text-xs font-semibold transition-all">
+                ${h} hr
+            </div>
+        `;
+    }
+
+    if (badgeEl) {
+        badgeEl.innerText = `${presentCount}/${totalClassesToday}`;
+    }
+
+    container.innerHTML = html;
+}
+
 function renderSubjectBreakdown(history) {
     const container = document.getElementById('subjectBreakdownContainer');
     if (!container) return;
@@ -444,7 +477,6 @@ function renderSubjectBreakdown(history) {
         return;
     }
 
-    // Group history entries by subject code
     const subjectMap = {};
     history.forEach(item => {
         const code = item.subjectCode || 'UNKNOWN';
@@ -465,7 +497,6 @@ function renderSubjectBreakdown(history) {
         const sub = subjectMap[code];
         const perc = sub.total > 0 ? Math.round((sub.present / sub.total) * 100) : 0;
 
-        // Define color tiers: <65% (Red), 65%-74% (Amber), >=75% (Green)
         let barColor = 'bg-emerald-500';
         let badgeStyle = 'bg-emerald-100 text-emerald-800';
         let borderStyle = 'border-slate-200/80';
@@ -481,10 +512,11 @@ function renderSubjectBreakdown(history) {
         }
 
         return `
-            <div class="p-3.5 border ${borderStyle} rounded-lg bg-slate-50/50 space-y-2.5 shadow-xs">
+            <div onclick="navigateToSubjectDetail('${escapeHtml(code)}')"
+                 class="p-3.5 border ${borderStyle} rounded-lg bg-slate-50/50 space-y-2.5 shadow-xs cursor-pointer hover:bg-white hover:shadow-md transition-all duration-200 group">
                 <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-xs font-bold text-slate-800 tracking-wide">${escapeHtml(code)}</p>
+                        <p class="text-xs font-bold text-slate-800 tracking-wide group-hover:text-indigo-600 transition-colors">${escapeHtml(code)}</p>
                         <p class="text-[11px] text-slate-500 font-medium">${escapeHtml(sub.name)}</p>
                     </div>
                     <span class="text-xs font-bold font-mono px-2 py-0.5 rounded ${badgeStyle}">${perc}%</span>
@@ -492,10 +524,18 @@ function renderSubjectBreakdown(history) {
                 <div class="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
                     <div class="${barColor} h-2 rounded-full transition-all duration-300" style="width: ${perc}%"></div>
                 </div>
-                <p class="text-[10px] text-slate-400 text-right font-medium">${sub.present} / ${sub.total} Classes Attended</p>
+                <div class="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                    <span class="group-hover:text-indigo-600 transition-colors">View Details &rarr;</span>
+                    <span>${sub.present} / ${sub.total} Classes Attended</span>
+                </div>
             </div>
         `;
     }).join('');
+}
+
+function navigateToSubjectDetail(subjectCode) {
+    if (!subjectCode) return;
+    window.location.href = `subject-detail.html?code=${encodeURIComponent(subjectCode)}`;
 }
 
 function renderBunkCalculator(present, total) {
@@ -512,7 +552,6 @@ function renderBunkCalculator(present, total) {
     const target = 75;
 
     if (currentPerc >= target) {
-        // Calculate how many future classes can be skipped while staying >= 75%
         const skippable = Math.floor((present - (target / 100) * total) / (target / 100));
         adviceEl.className = "p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-lg text-xs font-medium text-slate-700 leading-relaxed";
         adviceEl.innerHTML = `
@@ -520,7 +559,6 @@ function renderBunkCalculator(present, total) {
             You can skip up to <strong class="text-slate-900 font-bold">${Math.max(0, skippable)}</strong> upcoming class(es) without falling below the 75% requirement.
         `;
     } else {
-        // Calculate how many consecutive classes must be attended to reach 75%
         const needed = Math.ceil(((target / 100) * total - present) / (1 - (target / 100)));
         adviceEl.className = "p-3.5 bg-amber-50/60 border border-amber-200 rounded-lg text-xs font-medium text-slate-700 leading-relaxed";
         adviceEl.innerHTML = `
@@ -545,7 +583,6 @@ function logout() {
     window.location.href = 'login.html';
 }
 
-// --- EXPORT TO CSV ---
 function exportStudentHistoryCSV() {
     if (!allHistoryCache || allHistoryCache.length === 0) {
         alert('No attendance history available to export.');
@@ -567,6 +604,9 @@ function exportStudentHistoryCSV() {
     const filename = `Attendance_History_${regNum}_${new Date().toISOString().split('T')[0]}.csv`;
     downloadCSV(filename, headers, rows);
 }
+
+// Global alias support for export caller handlers
+window.exportAttendanceCSV = exportStudentHistoryCSV;
 
 function downloadCSV(filename, headers, rows) {
     const csvContent = [
