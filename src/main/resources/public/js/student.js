@@ -1,3 +1,10 @@
+/* js/student.js
+   Minimal, essential changes only:
+   - Semester-aware loaders: loadSummary(token, semester) and loadHistory(token, semester)
+   - Semester dropdown wiring and initialization
+   - All existing rendering logic preserved
+*/
+
 let allHistoryCache = [];
 let currentHistoryViewMode = 'detailed'; // State tracker: 'detailed' | 'matrix'
 let currentMonthFilter = ''; // Dynamic month key: e.g. '2026-08' or 'ALL'
@@ -19,13 +26,65 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    loadSummary(token);
-    loadHistory(token);
+    // Initialize semester selector and then load data
+    initSemesterAndLoad(token);
 });
 
-async function loadSummary(token) {
+async function initSemesterAndLoad(token) {
+    const semSelect = document.getElementById('semesterSelect');
+
+    // Try to fetch available semesters; if endpoint missing, fallback to 1..6
     try {
-        const response = await fetch('/student/summary', {
+        const res = await fetch('/student/semesters', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+            const data = await res.json();
+            populateSemesterOptions(Array.isArray(data) && data.length > 0 ? data : undefined);
+        } else {
+            populateSemesterOptions();
+        }
+    } catch (e) {
+        populateSemesterOptions();
+    }
+
+    // Wire change handler
+    if (semSelect) {
+        semSelect.addEventListener('change', (e) => {
+            const semester = e.target.value || 'ALL';
+            filterState.semester = semester;
+            const tokenNow = localStorage.getItem('jwtToken');
+            loadSummary(tokenNow, semester);
+            loadHistory(tokenNow, semester);
+        });
+    }
+
+    const defaultSemester = document.getElementById('semesterSelect')?.value || 'ALL';
+    filterState.semester = defaultSemester;
+    loadSummary(token, defaultSemester);
+    loadHistory(token, defaultSemester);
+}
+
+function populateSemesterOptions(semesters = []) {
+    const select = document.getElementById('semesterSelect');
+    if (!select) return;
+
+    select.innerHTML = '';
+    if (!semesters || semesters.length === 0) semesters = [1,2,3,4,5,6];
+
+    semesters.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = String(s);
+        opt.textContent = 'Semester ' + s;
+        select.appendChild(opt);
+    });
+
+    if (semesters.includes(5)) select.value = '5';
+    else select.value = String(semesters[semesters.length - 1] || '1');
+}
+
+async function loadSummary(token, semester = 'ALL') {
+    try {
+        const url = `/student/summary${semester && semester !== 'ALL' ? `?semester=${encodeURIComponent(semester)}` : ''}`;
+        const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -72,9 +131,10 @@ async function loadSummary(token) {
     }
 }
 
-async function loadHistory(token) {
+async function loadHistory(token, semester = 'ALL') {
     try {
-        const response = await fetch('/student/history', {
+        const url = `/student/history${semester && semester !== 'ALL' ? `?semester=${encodeURIComponent(semester)}` : ''}`;
+        const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -240,9 +300,9 @@ function filterAndRenderHistory() {
     if (filterState.semester && filterState.semester !== 'ALL') {
         const targetSem = filterState.semester.toUpperCase().replace(/^S/, '');
         filtered = filtered.filter(item => {
-            const itemSem = String(item.semester || item.sem || '').toUpperCase().replace(/^S/, '');
-            const code = String(item.subjectCode || '').toUpperCase();
-            return itemSem === targetSem || code.includes(`S${targetSem}`);
+            if (!item.semester && !item.sem) return true; // Let backend-scoped results pass through
+            const itemSem = String(item.semester || item.sem).toUpperCase().replace(/^S/, '');
+            return itemSem === targetSem;
         });
     }
 
@@ -265,6 +325,10 @@ function filterAndRenderHistory() {
         renderMatrixHistoryView(thead, tbody, filtered);
     }
 }
+
+/* Remaining rendering functions unchanged (renderDetailedHistoryView, renderMatrixHistoryView,
+   renderTodayAttendance, renderSubjectBreakdown, renderBunkCalculator, exportStudentHistoryCSV,
+   downloadCSV, and DOM wiring). They are preserved exactly as before. */
 
 function renderDetailedHistoryView(thead, tbody, filtered) {
     thead.innerHTML = `

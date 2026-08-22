@@ -113,17 +113,34 @@ fun Route.configureStudentRoutes() {
         get("/student/history") {
             val principal = call.principal<JWTPrincipal>()
             val registerNum = principal?.payload?.getClaim("registerNumber")?.asString()
+            val semester = call.request.queryParameters["semester"]?.toIntOrNull()
 
             if (registerNum == null) {
                 call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid token context"))
                 return@get
             }
 
-            // Query database for records matching this registration number
             val history = transaction {
-                AttendanceRecords.selectAll().where {
+                // Fetch student batch
+                val studentBatch = Users.selectAll()
+                    .where { Users.registerNumber eq registerNum }
+                    .map { it[Users.batch] }
+                    .singleOrNull()
+
+                // Fetch subject codes mapped to student batch and selected semester
+                val subjectCodesForSemester = if (semester != null && studentBatch != null) {
+                    BatchSubjects.selectAll()
+                        .where { (BatchSubjects.batch eq studentBatch) and (BatchSubjects.semester eq semester) }
+                        .map { it[BatchSubjects.subjectCode] }
+                } else {
+                    emptyList()
+                }
+
+                val query = AttendanceRecords.selectAll().where {
                     AttendanceRecords.registerNumber eq registerNum
-                }.map { row ->
+                }
+
+                val allRecords = query.map { row ->
                     AttendanceRecordResponse(
                         id = row[AttendanceRecords.id],
                         registerNumber = row[AttendanceRecords.registerNumber],
@@ -133,6 +150,16 @@ fun Route.configureStudentRoutes() {
                         hour = row[AttendanceRecords.hour],
                         status = row[AttendanceRecords.status]
                     )
+                }
+
+                if (semester != null) {
+                    if (subjectCodesForSemester.isNotEmpty()) {
+                        allRecords.filter { subjectCodesForSemester.contains(it.subjectCode) }
+                    } else {
+                        emptyList()
+                    }
+                } else {
+                    allRecords
                 }
             }
 
@@ -218,6 +245,7 @@ fun Route.configureStudentRoutes() {
         get("/student/summary") {
             val principal = call.principal<JWTPrincipal>()
             val registerNum = principal?.payload?.getClaim("registerNumber")?.asString()
+            val semester = call.request.queryParameters["semester"]?.toIntOrNull()
 
             if (registerNum == null) {
                 call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid token payload"))
@@ -225,37 +253,49 @@ fun Route.configureStudentRoutes() {
             }
 
             val summary = transaction {
-                val userRecords = AttendanceRecords.selectAll().where {
-                    AttendanceRecords.registerNumber eq registerNum
-                }.toList()
+                val studentBatch = Users.selectAll()
+                    .where { Users.registerNumber eq registerNum }
+                    .map { it[Users.batch] }
+                    .singleOrNull()
 
-                val total = userRecords.size
-                // Checked for both 'P' and 'PRESENT' string variations safely
-                val present = userRecords.count {
+                val subjectCodesForSemester = if (semester != null && studentBatch != null) {
+                    BatchSubjects.selectAll()
+                        .where { (BatchSubjects.batch eq studentBatch) and (BatchSubjects.semester eq semester) }
+                        .map { it[BatchSubjects.subjectCode] }
+                } else {
+                    emptyList()
+                }
+
+                val allRecordsForStudent = AttendanceRecords.selectAll()
+                    .where { AttendanceRecords.registerNumber eq registerNum }
+                    .toList()
+
+                val filteredRecords = if (semester != null) {
+                    if (subjectCodesForSemester.isNotEmpty()) {
+                        allRecordsForStudent.filter { row ->
+                            subjectCodesForSemester.contains(row[AttendanceRecords.subjectCode])
+                        }
+                    } else {
+                        emptyList()
+                    }
+                } else {
+                    allRecordsForStudent
+                }
+
+                val total = filteredRecords.size
+                val present = filteredRecords.count {
                     val status = it[AttendanceRecords.status]
                     status == "P" || status == "PRESENT"
                 }
                 val absent = total - present
-
-                val rawPercentage = if (total > 0) {
-                    (present.toDouble() / total.toDouble()) * 100.0
-                } else {
-                    0.0
-                }
-
-                // Safely format double value rounded to 2 decimal places
+                val rawPercentage = if (total > 0) (present.toDouble() / total * 100.0) else 0.0
                 val roundedPercentage = Math.round(rawPercentage * 100.0) / 100.0
 
-                StudentSummaryResponse(
-                    registerNumber = registerNum,
-                    totalClasses = total,
-                    presentCount = present,
-                    absentCount = absent,
-                    attendancePercentage = roundedPercentage
-                )
+                StudentSummaryResponse(registerNum, total, present, absent, roundedPercentage)
             }
 
             call.respond(HttpStatusCode.OK, summary)
         }
+
     }
 }
