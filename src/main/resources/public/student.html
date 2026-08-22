@@ -48,23 +48,32 @@
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900 font-sans pb-12">
 
-<!-- Top Sticky Mobile-First Navbar -->
+<!-- Top Sticky Mobile-First Navbar with Semester Selector & Welcome Greeting -->
 <nav class="sticky top-0 z-50 bg-slate-900 text-white shadow-md border-b border-slate-800">
-    <div class="px-4 py-3.5 max-w-4xl mx-auto flex justify-between items-center">
-        <div class="flex items-center space-x-3">
+    <div class="px-3 sm:px-4 py-2.5 max-w-4xl mx-auto flex items-center justify-between gap-2">
+        <div class="flex items-center space-x-2.5 min-w-0">
             <!-- Hamburger Menu Button -->
-            <button onclick="toggleMenu()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 focus:outline-none transition-colors border border-slate-700" aria-label="Open Menu">
+            <button onclick="toggleMenu()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 focus:outline-none transition-colors border border-slate-700 flex-shrink-0" aria-label="Open Menu">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
             </button>
-            <div onclick="showDashboardView()" class="flex items-center space-x-2 cursor-pointer">
-                <span class="relative flex h-2.5 w-2.5">
+            <div onclick="showDashboardView()" class="flex items-center space-x-2 min-w-0 cursor-pointer">
+                <span class="relative flex h-2.5 w-2.5 flex-shrink-0">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                 </span>
-                <h2 class="text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-100">Student Attendance Dashboard</h2>
+                <div class="truncate">
+                    <h2 class="text-[10px] sm:text-xs font-bold tracking-wider uppercase text-slate-400 leading-none mb-0.5">Student Portal</h2>
+                    <p class="text-xs sm:text-sm font-bold text-slate-100 truncate">Welcome, <span id="studentWelcomeName" class="text-indigo-300">Student</span></p>
+                </div>
             </div>
+        </div>
+
+        <!-- Global Semester Dropdown (Responsive & Truncated) -->
+        <div class="flex items-center flex-shrink-0">
+            <select id="semesterSelect" class="w-auto max-w-[110px] sm:max-w-none bg-slate-800 text-slate-100 border border-slate-700 text-[11px] sm:text-xs font-semibold rounded-md px-2 py-1 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer truncate">
+            </select>
         </div>
     </div>
 </nav>
@@ -129,16 +138,6 @@
         </button>
     </div>
 </aside>
-
-<!-- Semester selector (essential wiring for frontend) -->
-<div class="max-w-4xl mx-auto mt-6 px-4">
-    <label for="semesterSelect" class="block text-sm font-semibold text-slate-700 mb-2">
-        Select Semester
-    </label>
-    <select id="semesterSelect" class="w-full sm:w-48 border rounded px-2 py-1 text-sm focus:ring focus:ring-indigo-500">
-        <!-- Options populated by js/student.js -->
-    </select>
-</div>
 
 <!-- Main Container Layout -->
 <main class="dashboard-container max-w-4xl mx-auto px-4 mt-6 space-y-6">

@@ -17,7 +17,7 @@ import com.auth0.jwt.algorithms.Algorithm
 import java.io.File
 
 fun main() {
-    embeddedServer(Netty, port = 8080, host = "127.0.0.1") {
+    embeddedServer(Netty, port = 8081, host = "127.0.0.1") {
         module()
     }.start(wait = true)
 }

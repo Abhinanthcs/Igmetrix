@@ -1,21 +1,15 @@
-/* js/student.js
-   Minimal, essential changes only:
-   - Semester-aware loaders: loadSummary(token, semester) and loadHistory(token, semester)
-   - Semester dropdown wiring and initialization
-   - All existing rendering logic preserved
-*/
+/* js/student.js */
 
 let allHistoryCache = [];
-let currentHistoryViewMode = 'detailed'; // State tracker: 'detailed' | 'matrix'
-let currentMonthFilter = ''; // Dynamic month key: e.g. '2026-08' or 'ALL'
+let currentHistoryViewMode = 'detailed'; // 'detailed' | 'matrix'
+let currentMonthFilter = '';
 
-// Extended Filter/Sort State
 let filterState = {
     singleDate: '',
     startDate: '',
     endDate: '',
     semester: 'ALL',
-    sortOrder: 'DESC' // 'DESC' | 'ASC'
+    sortOrder: 'DESC'
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -26,14 +20,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    // Initialize semester selector and then load data
     initSemesterAndLoad(token);
 });
 
 async function initSemesterAndLoad(token) {
     const semSelect = document.getElementById('semesterSelect');
 
-    // Try to fetch available semesters; if endpoint missing, fallback to 1..6
     try {
         const res = await fetch('/student/semesters', { headers: { 'Authorization': `Bearer ${token}` } });
         if (res.ok) {
@@ -46,7 +38,6 @@ async function initSemesterAndLoad(token) {
         populateSemesterOptions();
     }
 
-    // Wire change handler
     if (semSelect) {
         semSelect.addEventListener('change', (e) => {
             const semester = e.target.value || 'ALL';
@@ -67,13 +58,17 @@ function populateSemesterOptions(semesters = []) {
     const select = document.getElementById('semesterSelect');
     if (!select) return;
 
+    // Responsive class stack: adjusts font-size, width, padding, and ensures options fit mobile screens
+    select.className = 'w-auto max-w-[130px] sm:max-w-none bg-slate-800 text-slate-100 border border-slate-700 text-[11px] sm:text-xs font-semibold rounded-md px-2 py-1 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer truncate';
+
     select.innerHTML = '';
-    if (!semesters || semesters.length === 0) semesters = [1,2,3,4,5,6];
+    if (!semesters || semesters.length === 0) semesters = [1, 2, 3, 4, 5, 6];
 
     semesters.forEach(s => {
         const opt = document.createElement('option');
         opt.value = String(s);
         opt.textContent = 'Semester ' + s;
+        opt.className = 'bg-slate-800 text-slate-100 py-1 text-xs';
         select.appendChild(opt);
     });
 
@@ -95,6 +90,14 @@ async function loadSummary(token, semester = 'ALL') {
 
         const data = await response.json();
 
+        // 1. Fetch Student Name with fallbacks for different backend DTO structures
+        const fetchedName = data.studentName || data.name || data.user?.name || data.username || 'Student';
+        const nameElement = document.getElementById('studentWelcomeName');
+        if (nameElement) {
+            nameElement.innerText = fetchedName;
+        }
+
+        // 2. Populate Overview Stats
         document.getElementById('regNum').innerText = data.registerNumber || '-';
         document.getElementById('totalClasses').innerText = data.totalClasses || 0;
         document.getElementById('presentCount').innerText = data.presentCount || 0;
@@ -218,7 +221,6 @@ function selectMonthTab(monthKey, element) {
     filterAndRenderHistory();
 }
 
-// --- FILTER & SORT MODAL CONTROLS ---
 function applyFiltersAndClose() {
     filterState.singleDate = document.getElementById('historySingleDate')?.value || '';
     filterState.startDate = document.getElementById('historyStartDate')?.value || '';
@@ -268,7 +270,6 @@ function updateActiveFilterBadge() {
     }
 }
 
-// --- FILTER & RENDER HISTORY ---
 function filterAndRenderHistory() {
     const tbody = document.getElementById('historyTableBody');
     const thead = document.getElementById('historyTableHead');
@@ -278,17 +279,14 @@ function filterAndRenderHistory() {
 
     let filtered = [...allHistoryCache];
 
-    // 1. Month Pill Filter
     if (currentMonthFilter && currentMonthFilter !== 'ALL') {
         filtered = filtered.filter(item => item.date && item.date.startsWith(currentMonthFilter));
     }
 
-    // 2. Single Date Filter
     if (filterState.singleDate) {
         filtered = filtered.filter(item => item.date === filterState.singleDate);
     }
 
-    // 3. Date Range Filter
     if (filterState.startDate) {
         filtered = filtered.filter(item => item.date >= filterState.startDate);
     }
@@ -296,21 +294,19 @@ function filterAndRenderHistory() {
         filtered = filtered.filter(item => item.date <= filterState.endDate);
     }
 
-    // 4. Semester Filter (checks numeric or prefixed formats)
     if (filterState.semester && filterState.semester !== 'ALL') {
         const targetSem = filterState.semester.toUpperCase().replace(/^S/, '');
         filtered = filtered.filter(item => {
-            if (!item.semester && !item.sem) return true; // Let backend-scoped results pass through
+            if (!item.semester && !item.sem) return true;
             const itemSem = String(item.semester || item.sem).toUpperCase().replace(/^S/, '');
             return itemSem === targetSem;
         });
     }
 
-    // 5. Date Sort Order
     filtered.sort((a, b) => {
-        const dateA = new Date(a.date);
-        const dateB = new Date(b.date);
-        const diff = filterState.sortOrder === 'ASC' ? dateA - dateB : dateB - dateA;
+        const diff = filterState.sortOrder === 'ASC'
+            ? String(a.date).localeCompare(String(b.date))
+            : String(b.date).localeCompare(String(a.date));
 
         if (diff !== 0) return diff;
 
@@ -325,10 +321,6 @@ function filterAndRenderHistory() {
         renderMatrixHistoryView(thead, tbody, filtered);
     }
 }
-
-/* Remaining rendering functions unchanged (renderDetailedHistoryView, renderMatrixHistoryView,
-   renderTodayAttendance, renderSubjectBreakdown, renderBunkCalculator, exportStudentHistoryCSV,
-   downloadCSV, and DOM wiring). They are preserved exactly as before. */
 
 function renderDetailedHistoryView(thead, tbody, filtered) {
     thead.innerHTML = `
@@ -398,7 +390,7 @@ function renderMatrixHistoryView(thead, tbody, filtered) {
     });
 
     const dates = Object.keys(dateGroupMap).sort((a, b) => {
-        return filterState.sortOrder === 'ASC' ? new Date(a) - new Date(b) : new Date(b) - new Date(a);
+        return filterState.sortOrder === 'ASC' ? a.localeCompare(b) : b.localeCompare(a);
     });
 
     dates.forEach(dateStr => {
@@ -563,7 +555,8 @@ function renderSubjectBreakdown(history) {
 
         let barColor = 'bg-emerald-500';
         let badgeStyle = 'bg-emerald-100 text-emerald-800';
-        let borderStyle = 'border-slate-200/80';
+        // Explicitly set green left border for >= 75%
+        let borderStyle = 'border-l-4 border-l-emerald-500 border-slate-200/80';
 
         if (perc < 65) {
             barColor = 'bg-rose-500';
@@ -669,7 +662,6 @@ function exportStudentHistoryCSV() {
     downloadCSV(filename, headers, rows);
 }
 
-// Global alias support for export caller handlers
 window.exportAttendanceCSV = exportStudentHistoryCSV;
 
 function downloadCSV(filename, headers, rows) {

@@ -19,6 +19,7 @@ import java.time.format.DateTimeFormatter
 @Serializable
 data class StudentSummaryResponse(
     val registerNumber: String,
+    val studentName: String,
     val totalClasses: Int,
     val presentCount: Int,
     val absentCount: Int,
@@ -253,11 +254,15 @@ fun Route.configureStudentRoutes() {
             }
 
             val summary = transaction {
-                val studentBatch = Users.selectAll()
+                // Fetch student name and batch from Users table
+                val studentRow = Users.selectAll()
                     .where { Users.registerNumber eq registerNum }
-                    .map { it[Users.batch] }
                     .singleOrNull()
 
+                val studentName = studentRow?.get(Users.name) ?: "Student"
+                val studentBatch = studentRow?.get(Users.batch)
+
+                // Fetch subject codes mapped strictly to student batch and selected semester
                 val subjectCodesForSemester = if (semester != null && studentBatch != null) {
                     BatchSubjects.selectAll()
                         .where { (BatchSubjects.batch eq studentBatch) and (BatchSubjects.semester eq semester) }
@@ -266,6 +271,7 @@ fun Route.configureStudentRoutes() {
                     emptyList()
                 }
 
+                // Query attendance records for student
                 val allRecordsForStudent = AttendanceRecords.selectAll()
                     .where { AttendanceRecords.registerNumber eq registerNum }
                     .toList()
@@ -282,6 +288,7 @@ fun Route.configureStudentRoutes() {
                     allRecordsForStudent
                 }
 
+                // Compute metrics
                 val total = filteredRecords.size
                 val present = filteredRecords.count {
                     val status = it[AttendanceRecords.status]
@@ -291,7 +298,14 @@ fun Route.configureStudentRoutes() {
                 val rawPercentage = if (total > 0) (present.toDouble() / total * 100.0) else 0.0
                 val roundedPercentage = Math.round(rawPercentage * 100.0) / 100.0
 
-                StudentSummaryResponse(registerNum, total, present, absent, roundedPercentage)
+                StudentSummaryResponse(
+                    registerNumber = registerNum,
+                    studentName = studentName,
+                    totalClasses = total,
+                    presentCount = present,
+                    absentCount = absent,
+                    attendancePercentage = roundedPercentage
+                )
             }
 
             call.respond(HttpStatusCode.OK, summary)
