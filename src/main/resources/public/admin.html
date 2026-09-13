@@ -262,19 +262,33 @@
 
         <!-- Forms Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Card 1: Add Subject to Catalog -->
+            <!-- Card 1: Add New Subject (Auto-groups GLOBAL subjects by Group Code) -->
             <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-4">Add New Subject</h4>
                 <form id="create-subject-form" class="space-y-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject Code</label>
                         <input type="text" id="subject-code" placeholder="e.g. CS101" required
-                               class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs uppercase font-mono outline-none text-slate-800 focus:outline-none">
+                               class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs uppercase font-mono outline-none text-slate-800">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject Name</label>
                         <input type="text" id="subject-name" placeholder="e.g. Data Structures" required
-                               class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800 focus:outline-none">
+                               class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject Type</label>
+                            <select id="subject-type" onchange="toggleGroupCodeInput()" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800 font-bold">
+                                <option value="LOCAL" selected>LOCAL (Core/Dept)</option>
+                                <option value="GLOBAL">GLOBAL (Elective)</option>
+                            </select>
+                        </div>
+                        <div id="group-code-container" class="hidden">
+                            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Group Code</label>
+                            <input type="text" id="subject-group-code" placeholder="e.g. LANG_SEM1"
+                                   class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs uppercase font-mono outline-none text-slate-800">
+                        </div>
                     </div>
                     <button type="submit" class="w-full py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-all shadow-md">
                         + Add Subject to Catalog
@@ -282,7 +296,7 @@
                 </form>
             </div>
 
-            <!-- Card 2: Assign Subject to Batch & Semester -->
+            <!-- Card 2: Assign Subject / Global Group to Semester -->
             <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-4">Assign Subject to Semester</h4>
                 <form id="assign-subject-form" class="space-y-4">
@@ -305,16 +319,60 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject</label>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject / Group</label>
                             <select id="assign-subject-select" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none">
-                                <option value="" disabled selected>Select Subject</option>
+                                <option value="" disabled selected>Select Item</option>
                             </select>
                         </div>
                     </div>
                     <button type="submit" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-all shadow-md">
-                        Link Subject to Semester
+                        Link to Semester
                     </button>
                 </form>
+            </div>
+        </div>
+
+        <!-- MASTER GLOBAL ELECTIVE POOL MATRIX -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide">Master Student Elective Catalog Pool</h4>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Manage individual student elective assignments per group slot (+ / - Actions)</p>
+                </div>
+                <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <select id="elective-pool-batch" onchange="fetchMasterElectivePool()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none">
+                        <option value="">Select Batch</option>
+                    </select>
+                    <select id="elective-pool-semester" onchange="fetchMasterElectivePool()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none">
+                        <option value="1">Sem 1</option>
+                        <option value="2">Sem 2</option>
+                        <option value="3">Sem 3</option>
+                        <option value="4">Sem 4</option>
+                        <option value="5">Sem 5</option>
+                        <option value="6">Sem 6</option>
+                    </select>
+                    <select id="elective-pool-group" onchange="fetchMasterElectivePool()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-800 outline-none">
+                        <option value="">Select Group Code</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="border border-slate-200 rounded-xl overflow-hidden">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead class="bg-slate-50 text-slate-500 font-mono uppercase font-semibold border-b border-slate-200">
+                    <tr id="elective-pool-thead-row">
+                        <th class="py-3 px-6">Reg Number</th>
+                        <th class="py-3 px-6">Student Name</th>
+                        <th class="py-3 px-6 text-center">Assigned Subject</th>
+                        <th class="py-3 px-6 text-right">Elective Actions (+ / -)</th>
+                    </tr>
+                    </thead>
+                    <tbody id="elective-pool-table-body" class="divide-y divide-slate-100 font-medium">
+                    <tr>
+                        <td colspan="4" class="py-6 text-center text-slate-400 italic">Select batch, semester, and group code above to manage student electives...</td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -325,7 +383,6 @@
                     <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide">Weekly Timetable Overview</h4>
                     <p class="text-[10px] text-slate-500 mt-0.5">At-a-glance full week schedule matrix for selected batch & semester</p>
                 </div>
-                <!-- Filter Bar -->
                 <div class="flex gap-2 w-full sm:w-auto">
                     <select id="overview-tt-batch-select" onchange="fetchWeeklyMatrix()" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none">
                         <option value="">Select Batch</option>
@@ -341,7 +398,6 @@
                 </div>
             </div>
 
-            <!-- Full-Week Row & Column Matrix Table -->
             <div class="border border-slate-200 rounded-xl overflow-x-auto">
                 <table class="w-full text-center text-xs border-collapse">
                     <thead class="bg-slate-50 text-slate-600 font-mono uppercase font-bold border-b border-slate-200">
@@ -370,7 +426,6 @@
                 <p class="text-[10px] text-slate-500 mt-0.5">Assign mapped subjects to daily periods for selected batch and semester</p>
             </div>
 
-            <!-- Controls Filter Bar -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Batch</label>
@@ -401,7 +456,6 @@
                 </div>
             </div>
 
-            <!-- Period Slots Configuration Table -->
             <div class="border border-slate-200 rounded-xl overflow-hidden">
                 <table class="w-full text-left text-xs">
                     <thead class="bg-slate-50 text-slate-500 font-mono uppercase font-semibold border-b border-slate-200">
@@ -410,9 +464,7 @@
                         <th class="py-3 px-6">Assigned Subject</th>
                     </tr>
                     </thead>
-                    <tbody id="timetable-slots-body" class="divide-y divide-slate-100 font-medium">
-                    <!-- Populated dynamically via JavaScript -->
-                    </tbody>
+                    <tbody id="timetable-slots-body" class="divide-y divide-slate-100 font-medium"></tbody>
                 </table>
             </div>
 
@@ -430,7 +482,6 @@
                     <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide">Active Semester Mappings</h4>
                     <p class="text-[10px] text-slate-500 mt-0.5">View and manage subjects linked to specific batch semesters</p>
                 </div>
-                <!-- Dynamic Filters -->
                 <div class="flex gap-2 w-full sm:w-auto">
                     <select id="filter-assigned-batch" class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 outline-none">
                         <option value="ALL">All Batches</option>
@@ -470,6 +521,8 @@
                 <tr>
                     <th class="py-3 px-6">Subject Code</th>
                     <th class="py-3 px-6">Subject Name</th>
+                    <th class="py-3 px-6">Type</th>
+                    <th class="py-3 px-6">Group Code</th>
                     <th class="py-3 px-6">Status</th>
                     <th class="py-3 px-6 text-right">Action</th>
                 </tr>
@@ -498,9 +551,7 @@
             </div>
         </div>
 
-        <!-- Multi-Filter Control Bar -->
         <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <!-- Row 1: Date Mode Selector and Inputs -->
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 border-b border-slate-100 pb-3">
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Date Selection Mode</label>
@@ -524,7 +575,6 @@
                 </div>
             </div>
 
-            <!-- Row 2: Secondary Metadata Filters -->
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Batch</label>
@@ -572,7 +622,6 @@
             </div>
         </div>
 
-        <!-- Attendance Table -->
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <table id="attendance-logs-table" class="w-full text-left border-collapse text-xs">
                 <thead class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-400">
@@ -739,6 +788,20 @@
 
         if (typeof fetchAttendanceLogs === 'function') {
             fetchAttendanceLogs();
+        }
+    }
+
+    function toggleGroupCodeInput() {
+        const typeSelect = document.getElementById('subject-type');
+        const container = document.getElementById('group-code-container');
+        if (typeSelect && container) {
+            if (typeSelect.value === 'GLOBAL') {
+                container.classList.remove('hidden');
+                document.getElementById('subject-group-code').required = true;
+            } else {
+                container.classList.add('hidden');
+                document.getElementById('subject-group-code').required = false;
+            }
         }
     }
 </script>

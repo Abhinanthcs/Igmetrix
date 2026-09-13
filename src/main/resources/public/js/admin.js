@@ -3,14 +3,12 @@ const TOKEN_KEY = 'jwtToken';
 
 // In-memory cache for client-side search & filtering
 let allStudentsCache = [];
-let assignedSubjectsCache = []; // Global cache for active semester mappings
+let assignedSubjectsCache = [];
 let currentAttendanceLogs = [];
+let globalGroupsCache = [];
 
 window.currentAttendanceLogs = window.currentAttendanceLogs || [];
 
-/**
- * Utility to escape HTML and prevent XSS injections
- */
 function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -21,10 +19,6 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
-/**
- * Standard fetch helper that auto-injects JWT Authorization headers
- * and safely handles empty or non-JSON server responses.
- */
 async function apiFetch(endpoint, method = 'GET', body = null) {
     const token = localStorage.getItem(TOKEN_KEY);
     const headers = { 'Content-Type': 'application/json' };
@@ -47,7 +41,6 @@ async function apiFetch(endpoint, method = 'GET', body = null) {
         throw new Error('Unauthorized session. Redirecting to login.');
     }
 
-    // Read response text first to safely check for empty responses
     const text = await response.text();
     let data = {};
     if (text) {
@@ -82,7 +75,6 @@ function initDeptBadge() {
     if (badge) badge.textContent = dept;
 }
 
-// Navigation Handling
 function initNavigation() {
     const tabBtns = document.querySelectorAll('.admin-tab-btn');
     const views = document.querySelectorAll('.admin-view');
@@ -117,14 +109,12 @@ function initNavigation() {
         });
     });
 
-    // Automatically trigger click on the Attendance Logs tab on load
     const defaultTabBtn = document.querySelector('.admin-tab-btn[data-tab="attendance-logs"]');
     if (defaultTabBtn) {
         defaultTabBtn.click();
     }
 }
 
-// Modal Toggle Logic
 function initModalControls() {
     const modal = document.getElementById('crud-modal');
     const openBtn = document.getElementById('open-modal-btn');
@@ -139,16 +129,13 @@ function initModalControls() {
     cancelBtn?.addEventListener('click', closeModal);
 }
 
-// Search & Filter Listeners
 function initFilterListeners() {
     document.getElementById('student-search')?.addEventListener('input', applyStudentFilters);
     document.getElementById('student-batch-filter')?.addEventListener('change', applyStudentFilters);
 
-    // Active semester mapping filters
     document.getElementById('filter-assigned-batch')?.addEventListener('change', renderAssignedSubjectsTable);
     document.getElementById('filter-assigned-semester')?.addEventListener('change', renderAssignedSubjectsTable);
 
-    // Attendance log filters
     document.getElementById('log-filter-date')?.addEventListener('change', fetchAttendanceLogs);
 
     document.getElementById('log-filter-batch')?.addEventListener('change', async () => {
@@ -165,12 +152,10 @@ function initFilterListeners() {
     document.getElementById('log-filter-hour')?.addEventListener('change', fetchAttendanceLogs);
     document.getElementById('log-filter-status')?.addEventListener('change', fetchAttendanceLogs);
 
-    // Overview Matrix Timetable Listeners
     document.getElementById('overview-tt-batch-select')?.addEventListener('change', fetchWeeklyMatrix);
     document.getElementById('overview-tt-semester-select')?.addEventListener('change', fetchWeeklyMatrix);
 }
 
-// Global Alerts
 function showAlert(message, isError = false) {
     const banner = document.getElementById('alert-banner');
     if (!banner) return;
@@ -188,7 +173,6 @@ function showAlert(message, isError = false) {
     }, 4000);
 }
 
-// Reusable Custom Confirmation Dialog Helper
 function requestConfirmation({ title, message, onConfirm }) {
     const modal = document.getElementById('confirm-modal');
     const titleEl = document.getElementById('confirm-modal-title');
@@ -213,7 +197,6 @@ function requestConfirmation({ title, message, onConfirm }) {
     }
 }
 
-// Initial Data Fetching
 async function loadDashboardData() {
     await Promise.all([
         fetchStudents(),
@@ -226,9 +209,7 @@ async function loadDashboardData() {
     await populateSubjectFilter();
 }
 
-// --- FORM & BUTTON HANDLERS ---
 function initFormListeners() {
-    // 1. Register Student Form
     document.getElementById('create-student-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
@@ -251,19 +232,11 @@ function initFormListeners() {
         }
     });
 
-    // 2. Batch Creation Form
     document.getElementById('create-batch-form')?.addEventListener('submit', handleCreateBatch);
-
-    // 3. Teacher Creation Form
     document.getElementById('create-teacher-form')?.addEventListener('submit', handleCreateTeacher);
-
-    // 4. Subject Creation Form
     document.getElementById('create-subject-form')?.addEventListener('submit', handleCreateSubject);
-
-    // 5. Subject Semester Assignment Form
     document.getElementById('assign-subject-form')?.addEventListener('submit', handleAssignSubject);
 
-    // 6. Rollover Button
     document.getElementById('rollover-btn')?.addEventListener('click', () => {
         requestConfirmation({
             title: 'Execute Semester Rollover?',
@@ -280,7 +253,6 @@ function initFormListeners() {
         });
     });
 
-    // 7. Sign Out Button
     document.getElementById('logout-btn')?.addEventListener('click', () => {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem('adminDepartment');
@@ -288,7 +260,6 @@ function initFormListeners() {
     });
 }
 
-// Handle Batch Creation
 async function handleCreateBatch(event) {
     event.preventDefault();
     const startYearInput = document.getElementById('batch-start-year')?.value.trim() || '';
@@ -321,7 +292,6 @@ async function handleCreateTeacher(event) {
     const passwordInput = document.getElementById('teacher-password')?.value || '';
     const phoneInput = document.getElementById('teacher-phone')?.value.trim() || 'N/A';
 
-    // Format YYYY-MM-DD -> DD-MM-YYYY if necessary
     if (dobInput.includes('-')) {
         const parts = dobInput.split('-');
         if (parts[0].length === 4) {
@@ -347,18 +317,23 @@ async function handleCreateTeacher(event) {
     }
 }
 
-// Handle Subject Creation
 async function handleCreateSubject(event) {
     event.preventDefault();
+    const typeVal = document.getElementById('subject-type')?.value || 'LOCAL';
+    const groupCodeVal = document.getElementById('subject-group-code')?.value.trim().toUpperCase();
+
     const payload = {
         code: document.getElementById('subject-code')?.value.trim(),
-        name: document.getElementById('subject-name')?.value.trim()
+        name: document.getElementById('subject-name')?.value.trim(),
+        subjectType: typeVal,
+        groupCode: typeVal === 'GLOBAL' ? groupCodeVal : null
     };
 
     try {
         const res = await apiFetch('/api/admin/subjects', 'POST', payload);
         showAlert(res.message || 'Subject added to catalog.');
         document.getElementById('create-subject-form')?.reset();
+        if (typeof toggleGroupCodeInput === 'function') toggleGroupCodeInput();
         await fetchSubjects();
         await populateSubjectFilter();
     } catch (err) {
@@ -366,18 +341,23 @@ async function handleCreateSubject(event) {
     }
 }
 
-// Handle Subject Assignment to Batch & Semester
 async function handleAssignSubject(event) {
     event.preventDefault();
-    const payload = {
-        batch: document.getElementById('assign-batch-select')?.value,
-        semester: parseInt(document.getElementById('assign-semester-select')?.value, 10),
-        subjectCode: document.getElementById('assign-subject-select')?.value
-    };
+    const batch = document.getElementById('assign-batch-select')?.value;
+    const semester = parseInt(document.getElementById('assign-semester-select')?.value, 10);
+    const selectedValue = document.getElementById('assign-subject-select')?.value;
+
+    if (!selectedValue) return;
 
     try {
-        const res = await apiFetch('/api/admin/batches/assign-subject', 'POST', payload);
-        showAlert(res.message || 'Subject assigned to semester successfully.');
+        let res;
+        if (selectedValue.startsWith("GROUP:")) {
+            const groupCode = selectedValue.replace("GROUP:", "");
+            res = await apiFetch('/api/admin/batches/assign-global-group', 'POST', { batch, semester, groupCode });
+        } else {
+            res = await apiFetch('/api/admin/batches/assign-subject', 'POST', { batch, semester, subjectCode: selectedValue });
+        }
+        showAlert(res.message || 'Subject linked to semester successfully.');
         document.getElementById('assign-subject-form')?.reset();
         await fetchAssignedSubjects();
         await populateSubjectFilter();
@@ -385,8 +365,6 @@ async function handleAssignSubject(event) {
         showAlert(`Failed to assign subject: ${err.message}`, true);
     }
 }
-
-// --- API FETCH & RENDER HELPERS ---
 
 async function fetchStudents() {
     try {
@@ -404,7 +382,7 @@ function applyStudentFilters() {
 
     const filtered = allStudentsCache.filter(s => {
         const matchesSearch = s.name.toLowerCase().includes(searchTerm) ||
-                              s.registerNumber.toLowerCase().includes(searchTerm);
+            s.registerNumber.toLowerCase().includes(searchTerm);
         const matchesBatch = selectedBatch === 'ALL' || s.batch === selectedBatch;
         return matchesSearch && matchesBatch;
     });
@@ -472,14 +450,14 @@ async function fetchBatches() {
 
 async function fetchSubjects() {
     try {
-        // Fetch subjects catalog and active mappings in parallel
-        const [subjects, assignedSubjects] = await Promise.all([
+        const [subjects, assignedSubjects, globalGroups] = await Promise.all([
             apiFetch('/api/admin/subjects', 'GET').catch(() => []),
-            apiFetch('/api/admin/assigned-subjects', 'GET').catch(() => [])
+            apiFetch('/api/admin/assigned-subjects', 'GET').catch(() => []),
+            apiFetch('/api/admin/global-groups', 'GET').catch(() => [])
         ]);
 
-        // Keep local cache updated
         window.assignedSubjectsCache = assignedSubjects;
+        globalGroupsCache = globalGroups || [];
         const linkedCodes = new Set((assignedSubjects || []).map(a => a.subjectCode));
 
         const tbody = document.getElementById('subject-table-body');
@@ -487,10 +465,19 @@ async function fetchSubjects() {
             tbody.innerHTML = (subjects && subjects.length > 0)
                 ? subjects.map(s => {
                     const isLinked = linkedCodes.has(s.code);
+                    const isGlobal = s.subjectType === 'GLOBAL';
                     return `
                         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
                             <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(s.code)}</td>
                             <td class="py-3 px-6 text-slate-700">${escapeHtml(s.name)}</td>
+                            <td class="py-3 px-6">
+                                <span class="px-2 py-0.5 ${isGlobal ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-blue-500/10 text-blue-600 border-blue-500/20'} rounded text-[10px] font-bold font-mono border">
+                                    ${isGlobal ? 'GLOBAL' : 'LOCAL'}
+                                </span>
+                            </td>
+                            <td class="py-3 px-6 font-mono text-slate-600">
+                                ${s.groupCode ? `<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold">${escapeHtml(s.groupCode)}</span>` : '-'}
+                            </td>
                             <td class="py-3 px-6">
                                 <span class="px-2 py-1 bg-green-500/10 text-green-600 rounded text-[10px] font-bold font-mono">ACTIVE</span>
                             </td>
@@ -507,13 +494,34 @@ async function fetchSubjects() {
                         </tr>
                     `;
                 }).join('')
-                : `<tr><td colspan="4" class="py-4 text-center text-slate-400 italic">No subjects in catalog.</td></tr>`;
+                : `<tr><td colspan="6" class="py-4 text-center text-slate-400 italic">No subjects in catalog.</td></tr>`;
+        }
+
+        const poolGroupSelect = document.getElementById('elective-pool-group');
+        if (poolGroupSelect) {
+            poolGroupSelect.innerHTML = `<option value="">Select Group Code</option>` +
+                globalGroups.map(g => `<option value="${escapeHtml(g.groupCode)}">${escapeHtml(g.groupCode)}</option>`).join('');
         }
 
         const assignSelect = document.getElementById('assign-subject-select');
         if (assignSelect) {
-            assignSelect.innerHTML = `<option value="" disabled selected>Select Subject</option>` +
-                (subjects || []).map(s => `<option value="${escapeHtml(s.code)}">${escapeHtml(s.code)} - ${escapeHtml(s.name)}</option>`).join('');
+            let options = `<option value="" disabled selected>Select Subject / Group</option>`;
+
+            if (globalGroups && globalGroups.length > 0) {
+                options += `<optgroup label="AUTO GLOBAL GROUPS">`;
+                globalGroups.forEach(g => {
+                    options += `<option value="GROUP:${escapeHtml(g.groupCode)}">[GROUP] ${escapeHtml(g.groupCode)}</option>`;
+                });
+                options += `</optgroup>`;
+            }
+
+            options += `<optgroup label="INDIVIDUAL SUBJECTS">`;
+            (subjects || []).forEach(s => {
+                options += `<option value="${escapeHtml(s.code)}">${escapeHtml(s.code)} - ${escapeHtml(s.name)}</option>`;
+            });
+            options += `</optgroup>`;
+
+            assignSelect.innerHTML = options;
         }
     } catch (err) {
         console.error('Error fetching subjects:', err);
@@ -527,18 +535,111 @@ async function deleteSubject(subjectCode) {
     }
 
     try {
-        // Send single DELETE request to admin endpoint
         const res = await apiFetch(`/api/admin/subjects/${encodeURIComponent(subjectCode)}`, 'DELETE');
         showAlert(res?.message || "Subject removed successfully!");
-
-        // Refresh catalog table
         await fetchSubjects();
     } catch (error) {
         console.error("Error deleting subject:", error);
         showAlert(error.message || "Failed to delete subject.", true);
     }
 }
-// --- DYNAMIC SUBJECT DROPDOWN POPULATION ---
+
+async function fetchMasterElectivePool() {
+    const batch = document.getElementById('elective-pool-batch')?.value;
+    const semester = document.getElementById('elective-pool-semester')?.value;
+    const groupCode = document.getElementById('elective-pool-group')?.value;
+    const tbody = document.getElementById('elective-pool-table-body');
+    const theadRow = document.getElementById('elective-pool-thead-row');
+
+    if (!tbody || !theadRow) return;
+
+    if (!batch || !semester || !groupCode) {
+        tbody.innerHTML = `<tr><td colspan="100%" class="py-6 text-center text-slate-400 italic">Select batch, semester, and group code above to manage student electives...</td></tr>`;
+        return;
+    }
+
+    try {
+        const currentGroup = globalGroupsCache.find(g => g.groupCode === groupCode);
+        const groupSubjects = currentGroup ? currentGroup.subjects : [];
+
+        if (groupSubjects.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="100%" class="py-6 text-center text-slate-400 italic">No global subjects found registered under group code ${escapeHtml(groupCode)}.</td></tr>`;
+            return;
+        }
+
+        const subjectMap = new Map();
+        groupSubjects.forEach(s => subjectMap.set(s.code, s.name));
+
+        const studentData = await apiFetch(`/api/admin/students/electives?batch=${encodeURIComponent(batch)}&semester=${semester}&groupCode=${encodeURIComponent(groupCode)}`, 'GET');
+
+        theadRow.innerHTML = `
+            <th class="py-3 px-6">Reg Number</th>
+            <th class="py-3 px-6">Student Name</th>
+            <th class="py-3 px-6 text-center">Assigned Choice</th>
+            <th class="py-3 px-6 text-right">Elective Options (+ / -)</th>
+        `;
+
+        if (!studentData || studentData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="100%" class="py-6 text-center text-slate-400 italic">No registered students in batch ${escapeHtml(batch)}.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = studentData.map(s => {
+            const assignedCode = s.assignedSubjectCode;
+            const assignedName = assignedCode ? (subjectMap.get(assignedCode) || assignedCode) : null;
+
+            return `
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                    <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(s.registerNumber)}</td>
+                    <td class="py-3 px-6 font-medium text-slate-700">${escapeHtml(s.name)}</td>
+                    <td class="py-3 px-6 text-center font-mono font-bold">
+                        ${assignedCode
+                ? `<span class="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-xs" title="${escapeHtml(assignedCode)}">${escapeHtml(assignedName)}</span>`
+                : `<span class="text-slate-400 font-normal italic font-sans">Unassigned</span>`}
+                    </td>
+                    <td class="py-3 px-6 text-right">
+                        <div class="flex justify-end gap-1.5 flex-wrap">
+                            ${groupSubjects.map(subj => {
+                const isSelected = s.assignedSubjectCode === subj.code;
+                return `
+                                    <button onclick="toggleStudentElectiveChoice('${escapeHtml(s.registerNumber)}', '${escapeHtml(batch)}', ${semester}, '${escapeHtml(groupCode)}', '${escapeHtml(subj.code)}', '${isSelected ? 'REMOVE' : 'ADD'}')"
+                                            title="${escapeHtml(subj.code)} - ${escapeHtml(subj.name)}"
+                                            class="px-2.5 py-1 rounded font-sans text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${
+                    isSelected
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
+                }">
+                                        <span>${escapeHtml(subj.name)}</span>
+                                        <span class="font-extrabold text-sm">${isSelected ? '-' : '+'}</span>
+                                    </button>
+                                `;
+            }).join('')}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Error rendering elective pool:', err);
+        tbody.innerHTML = `<tr><td colspan="100%" class="py-4 text-center text-red-500 text-xs">Failed to load student elective allocation matrix.</td></tr>`;
+    }
+}
+
+async function toggleStudentElectiveChoice(regNo, batch, semester, groupCode, subjectCode, action) {
+    try {
+        await apiFetch('/api/admin/students/toggle-elective', 'POST', {
+            registerNumber: regNo,
+            batch: batch,
+            semester: semester,
+            groupCode: groupCode,
+            subjectCode: subjectCode,
+            action: action
+        });
+        await fetchMasterElectivePool();
+    } catch (err) {
+        showAlert(`Failed to update student elective choice: ${err.message}`, true);
+    }
+}
 
 async function populateSubjectFilter() {
     const subjectSelect = document.getElementById('log-filter-subject');
@@ -602,22 +703,18 @@ async function unlinkSubject(assignmentId) {
         const res = await apiFetch(`/api/admin/assigned-subjects/${assignmentId}`, 'DELETE');
         showAlert(res?.message || "Subject unlinked successfully!");
 
-        // Refresh assigned subjects table if function exists
         if (typeof window.fetchAssignedSubjects === 'function') {
             await window.fetchAssignedSubjects();
         } else if (typeof window.loadAssignedSubjects === 'function') {
             await window.loadAssignedSubjects();
         }
 
-        // Re-fetch catalog pool to toggle "Linked" badge back to "Delete" button
         await fetchSubjects();
     } catch (err) {
         console.error("Error unlinking subject:", err);
         showAlert(`Failed to unlink subject: ${err.message}`, true);
     }
 }
-
-// --- ACTIVE SEMESTER MAPPINGS FUNCTIONS ---
 
 async function fetchAssignedSubjects() {
     try {
@@ -647,17 +744,63 @@ function renderAssignedSubjectsTable() {
         return;
     }
 
-    tbody.innerHTML = filtered.map(item => `
-        <tr class="hover:bg-slate-50 transition-colors">
-            <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(item.batch)}</td>
-            <td class="py-3 px-6 font-medium text-slate-700">Sem ${item.semester}</td>
-            <td class="py-3 px-6 font-mono font-bold text-indigo-600">${escapeHtml(item.subjectCode)}</td>
-            <td class="py-3 px-6 font-medium text-slate-800">${escapeHtml(item.subjectName)}</td>
-            <td class="py-3 px-6 text-right">
-                <button onclick="confirmUnlinkSubject('${item.id}')" class="text-red-500 hover:text-red-700 font-bold">Unlink</button>
-            </td>
-        </tr>
-    `).join('');
+    const localItems = filtered.filter(item => !item.groupCode);
+    const globalGroupsMap = new Map();
+
+    filtered.filter(item => item.groupCode).forEach(item => {
+        const key = `${item.batch}_${item.semester}_${item.groupCode}`;
+        if (!globalGroupsMap.has(key)) {
+            globalGroupsMap.set(key, {
+                batch: item.batch,
+                semester: item.semester,
+                groupCode: item.groupCode,
+                subjects: []
+            });
+        }
+        globalGroupsMap.get(key).subjects.push(item);
+    });
+
+    let html = '';
+
+    localItems.forEach(item => {
+        html += `
+            <tr class="hover:bg-slate-50 transition-colors">
+                <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(item.batch)}</td>
+                <td class="py-3 px-6 font-medium text-slate-700">Sem ${item.semester}</td>
+                <td class="py-3 px-6 font-mono font-bold text-indigo-600">${escapeHtml(item.subjectCode)}</td>
+                <td class="py-3 px-6 font-medium text-slate-800">${escapeHtml(item.subjectName)}</td>
+                <td class="py-3 px-6 text-right">
+                    <button onclick="confirmUnlinkSubject('${item.id}')" class="text-red-500 hover:text-red-700 font-bold">Unlink</button>
+                </td>
+            </tr>
+        `;
+    });
+
+    globalGroupsMap.forEach((group) => {
+        const subjectListDisplay = group.subjects.map(s => `
+            <span class="inline-block bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-mono text-[11px] mr-1 mb-1 text-slate-700">
+                ${escapeHtml(s.subjectCode)} - ${escapeHtml(s.subjectName)}
+            </span>
+        `).join('');
+
+        html += `
+            <tr class="hover:bg-slate-50 transition-colors bg-emerald-50/20">
+                <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(group.batch)}</td>
+                <td class="py-3 px-6 font-medium text-slate-700">Sem ${group.semester}</td>
+                <td class="py-3 px-6 font-mono font-bold text-emerald-700">
+                    <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-xs">[GROUP] ${escapeHtml(group.groupCode)}</span>
+                </td>
+                <td class="py-3 px-6 font-medium text-slate-800">
+                    <div class="flex flex-wrap gap-1 mt-1">${subjectListDisplay}</div>
+                </td>
+                <td class="py-3 px-6 text-right">
+                    <button onclick="confirmUnlinkGroup('${escapeHtml(group.batch)}', ${group.semester}, '${escapeHtml(group.groupCode)}')" class="text-red-500 hover:text-red-700 font-bold">Unlink Group</button>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
 }
 
 function confirmUnlinkSubject(assignmentId) {
@@ -677,7 +820,27 @@ function confirmUnlinkSubject(assignmentId) {
     });
 }
 
-// Handler for fetching and opening batch roster modal
+function confirmUnlinkGroup(batch, semester, groupCode) {
+    requestConfirmation({
+        title: 'Unlink Global Subject Group?',
+        message: `Are you sure you want to remove all subjects under group code "${groupCode}" from Batch ${batch} Semester ${semester}?`,
+        onConfirm: async () => {
+            try {
+                const res = await apiFetch('/api/admin/assigned-groups/delete', 'POST', {
+                    batch: batch,
+                    semester: semester,
+                    groupCode: groupCode
+                });
+                showAlert(res.message || 'Group unlinked successfully.');
+                await fetchAssignedSubjects();
+                await populateSubjectFilter();
+            } catch (err) {
+                showAlert(`Error unlinking group: ${err.message}`, true);
+            }
+        }
+    });
+}
+
 async function viewBatchRoster(batchName) {
     const modal = document.getElementById('roster-modal');
     const title = document.getElementById('roster-title');
@@ -754,8 +917,6 @@ async function fetchTeachers() {
         console.error('Error fetching teachers:', err);
     }
 }
-
-// --- ADMIN LOGS & APPROVALS ---
 
 async function fetchPendingLogs() {
     try {
@@ -860,8 +1021,6 @@ function confirmDeleteTeacher(teacherId) {
         }
     });
 }
-
-// --- ATTENDANCE LOGS FETCHING & MATRIX RENDERING ---
 
 async function fetchAttendanceLogs() {
     const dateMode = document.getElementById('log-date-mode')?.value || 'ALL';
@@ -973,27 +1132,27 @@ function renderPivotAttendanceTable(logs) {
             <td class="py-3 px-4 font-mono font-bold text-slate-800">${escapeHtml(student.reg)}</td>
             <td class="py-3 px-4 text-slate-700">${escapeHtml(student.name)}</td>
             ${sortedSessions.map(([key, _]) => {
-                const record = student.attendance[key];
-                if (!record) {
-                    return `<td class="py-3 px-4 text-center font-mono text-slate-300">-</td>`;
-                }
+        const record = student.attendance[key];
+        if (!record) {
+            return `<td class="py-3 px-4 text-center font-mono text-slate-300">-</td>`;
+        }
 
-                const current = record.status;
-                let nextStatus = 'PRESENT';
-                let btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
+        const current = record.status;
+        let nextStatus = 'PRESENT';
+        let btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
 
-                if (current === 'P') {
-                    nextStatus = 'ABSENT';
-                    btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20';
-                } else if (current === 'A') {
-                    nextStatus = 'LATE';
-                    btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
-                } else if (current === 'L') {
-                    nextStatus = 'PRESENT';
-                    btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20';
-                }
+        if (current === 'P') {
+            nextStatus = 'ABSENT';
+            btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20';
+        } else if (current === 'A') {
+            nextStatus = 'LATE';
+            btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
+        } else if (current === 'L') {
+            nextStatus = 'PRESENT';
+            btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20';
+        }
 
-                return `
+        return `
                     <td class="py-3 px-4 text-center font-mono font-bold">
                         <button onclick="toggleAttendanceStatus('${record.logId}', '${nextStatus}')"
                                 class="px-2.5 py-1 rounded transition-all cursor-pointer ${btnStyle}">
@@ -1001,7 +1160,7 @@ function renderPivotAttendanceTable(logs) {
                         </button>
                     </td>
                 `;
-            }).join('')}
+    }).join('')}
         </tr>
     `).join('');
 }
@@ -1045,8 +1204,6 @@ async function toggleAttendanceStatus(id, newStatus) {
         }
     }
 }
-
-// --- CSV EXPORT UTILITIES ---
 
 function exportAdminLogsCSV() {
     const logs = window.currentAttendanceLogs;
@@ -1124,8 +1281,6 @@ function downloadCSV(filename, headers, rows) {
     document.body.removeChild(link);
 }
 
-// --- TIMETABLE MANAGEMENT ---
-
 function getMappedSubjectsForSelectedBatchAndSem() {
     const batchSelect = document.getElementById("tt-batch-select") || document.getElementById("batchSelect") || document.getElementById("timetable-batch-select");
     const semesterSelect = document.getElementById("tt-semester-select") || document.getElementById("semesterSelect") || document.getElementById("timetable-semester-select");
@@ -1151,11 +1306,29 @@ function renderTimetableSlots() {
 
     const subjects = getMappedSubjectsForSelectedBatchAndSem();
 
-    let optionsHtml = '<option value="">-- Select Subject --</option>';
+    let optionsHtml = '<option value="">-- SELECT SUBJECT --</option>';
+
     if (subjects.length > 0) {
-        optionsHtml += subjects.map(s =>
-            `<option value="${s.subjectCode}">${s.subjectCode} - ${s.subjectName}</option>`
-        ).join('');
+        const localSubjects = subjects.filter(s => !s.groupCode);
+        const globalSubjects = subjects.filter(s => s.groupCode);
+
+        const uniqueGroupCodes = Array.from(new Set(globalSubjects.map(s => s.groupCode)));
+
+        if (localSubjects.length > 0) {
+            optionsHtml += `<optgroup label="CORE / LOCAL SUBJECTS">`;
+            localSubjects.forEach(s => {
+                optionsHtml += `<option value="${escapeHtml(s.subjectCode)}">${escapeHtml(s.subjectCode)} - ${escapeHtml(s.subjectName)}</option>`;
+            });
+            optionsHtml += `</optgroup>`;
+        }
+
+        if (uniqueGroupCodes.length > 0) {
+            optionsHtml += `<optgroup label="GLOBAL ELECTIVE GROUPS">`;
+            uniqueGroupCodes.forEach(gCode => {
+                optionsHtml += `<option value="${escapeHtml(gCode)}">[GROUP] ${escapeHtml(gCode)}</option>`;
+            });
+            optionsHtml += `</optgroup>`;
+        }
     } else {
         optionsHtml += `<option value="" disabled>No mapped subjects found for this batch/semester</option>`;
     }
@@ -1305,15 +1478,15 @@ function populateTimetableUI(slotsData) {
     if (Array.isArray(slotsData)) {
         slotsData.forEach(slot => {
             const elem = document.querySelector(`.timetable-slot-input[data-hour="${slot.hour}"]`) ||
-                         document.getElementById(`hour${slot.hour}Input`) ||
-                         document.querySelector(`[data-hour="${slot.hour}"]`);
+                document.getElementById(`hour${slot.hour}Input`) ||
+                document.querySelector(`[data-hour="${slot.hour}"]`);
             if (elem) elem.value = slot.subjectCode || "";
         });
     } else if (typeof slotsData === 'object' && slotsData !== null) {
         Object.entries(slotsData).forEach(([hour, subjectCode]) => {
             const elem = document.querySelector(`.timetable-slot-input[data-hour="${hour}"]`) ||
-                         document.getElementById(`hour${hour}Input`) ||
-                         document.querySelector(`[data-hour="${hour}"]`);
+                document.getElementById(`hour${hour}Input`) ||
+                document.querySelector(`[data-hour="${hour}"]`);
             if (elem) elem.value = subjectCode || "";
         });
     }
@@ -1373,14 +1546,14 @@ async function fetchWeeklyMatrix() {
                 <tr class="hover:bg-slate-50 transition-colors">
                     <td class="py-3 px-4 font-sans font-bold text-slate-700 text-left bg-slate-50/50 border-r border-slate-200">${day}</td>
                     ${[1, 2, 3, 4, 5].map(hour => {
-                        const subjectDisplay = slotMap[hour] || '-';
-                        const isEmpty = subjectDisplay === '-';
-                        return `
+                const subjectDisplay = slotMap[hour] || '-';
+                const isEmpty = subjectDisplay === '-';
+                return `
                             <td class="py-3 px-3 border-r border-slate-200 ${isEmpty ? 'text-slate-300 font-sans' : 'font-bold text-indigo-600 bg-indigo-50/30'}">
                                 ${escapeHtml(subjectDisplay)}
                             </td>
                         `;
-                    }).join('')}
+            }).join('')}
                 </tr>
             `;
         });
@@ -1399,6 +1572,7 @@ function populateBatchDropdowns(batches) {
         { id: 'log-filter-batch', defaultLabel: 'All Batches', defaultValue: 'ALL' },
         { id: 'modal-batch', defaultLabel: 'Select Batch', defaultValue: '' },
         { id: 'assign-batch-select', defaultLabel: 'Select Batch', defaultValue: '' },
+        { id: 'elective-pool-batch', defaultLabel: 'Select Batch', defaultValue: '' },
         { id: 'tt-batch-select', defaultLabel: 'Select Batch', defaultValue: '' },
         { id: 'batchSelect', defaultLabel: 'Select Batch', defaultValue: '' },
         { id: 'timetable-batch-select', defaultLabel: 'Select Batch', defaultValue: '' },
@@ -1428,7 +1602,6 @@ function populateBatchDropdowns(batches) {
     });
 }
 
-// Global scope bindings
 window.fetchWeeklyMatrix = fetchWeeklyMatrix;
 window.initTimetable = initTimetable;
 window.fetchTimetable = fetchTimetable;
@@ -1439,8 +1612,10 @@ window.fetchSubjects = fetchSubjects;
 window.deleteSubject = deleteSubject;
 window.populateSubjectFilter = populateSubjectFilter;
 window.unlinkSubject = unlinkSubject;
+window.confirmUnlinkGroup = confirmUnlinkGroup;
+window.fetchMasterElectivePool = fetchMasterElectivePool;
+window.toggleStudentElectiveChoice = toggleStudentElectiveChoice;
 
-// Global function to toggle password visibility
 window.toggleTeacherPasswordVisibility = function(index) {
     const el = document.getElementById(`teacher-pwd-${index}`);
     if (!el) return;

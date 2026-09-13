@@ -16,6 +16,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import org.jetbrains.exposed.sql.SortOrder
 import org.mindrot.jbcrypt.BCrypt
+import org.jetbrains.exposed.exceptions.ExposedSQLException
 
 // --- DTO DEFINITIONS ---
 @Serializable
@@ -48,6 +49,13 @@ data class CreateTeacherRequest(
 @Serializable data class ActionLogRequest(val id: Int)
 
 @Serializable
+data class DeleteGroupMappingRequest(
+    val batch: String,
+    val semester: Int,
+    val groupCode: String
+)
+
+@Serializable
 data class StudentResponse(
     val registerNumber: String,
     val name: String,
@@ -62,7 +70,7 @@ data class BatchResponse(
     val studentCount: Long
 )
 
-@Serializable data class TeacherResponse(val teacherId: String, val name: String, val dateOfBirth: String, val phoneNumber: String,val password: String?)
+@Serializable data class TeacherResponse(val teacherId: String, val name: String, val dateOfBirth: String, val phoneNumber: String, val password: String?)
 @Serializable data class PendingLogResponse(val id: Int, val subjectCode: String, val subjectName: String, val date: String, val hour: Int)
 @Serializable data class ApiResponse(val message: String)
 
@@ -70,7 +78,9 @@ data class BatchResponse(
 data class SubjectResponse(
     val id: Int,
     val code: String,
-    val name: String
+    val name: String,
+    val subjectType: String? = "LOCAL",
+    val groupCode: String? = null
 )
 
 @Serializable
@@ -79,13 +89,16 @@ data class AssignedSubjectDTO(
     val batch: String,
     val semester: Int,
     val subjectCode: String,
-    val subjectName: String
+    val subjectName: String,
+    val groupCode: String? = null
 )
 
 @Serializable
 data class SubjectDTO(
     val code: String,
-    val name: String
+    val name: String,
+    val subjectType: String? = "LOCAL",
+    val groupCode: String? = null
 )
 
 @Serializable
@@ -95,7 +108,37 @@ data class AssignSubjectRequest(
     val subjectCode: String
 )
 
-// DTOs for Attendance Audit & Editing
+@Serializable
+data class AssignGlobalGroupRequest(
+    val batch: String,
+    val semester: Int,
+    val groupCode: String
+)
+
+@Serializable
+data class GlobalGroupResponse(
+    val groupCode: String,
+    val subjects: List<SubjectResponse>
+)
+
+@Serializable
+data class ToggleStudentElectiveRequest(
+    val registerNumber: String,
+    val batch: String,
+    val semester: Int,
+    val groupCode: String,
+    val subjectCode: String,
+    val action: String // "ADD" or "REMOVE"
+)
+
+@Serializable
+data class StudentElectiveStatusDTO(
+    val registerNumber: String,
+    val name: String,
+    val batch: String,
+    val assignedSubjectCode: String? = null
+)
+
 @Serializable
 data class AttendanceLogResponse(
     val id: Int,
@@ -148,7 +191,6 @@ fun Application.configureAdminRoutes() {
         authenticate("auth-jwt") {
             route("/api/admin") {
 
-                // GET /api/admin/students
                 get("/students") {
                     val principal = call.principal<JWTPrincipal>()
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
@@ -176,7 +218,6 @@ fun Application.configureAdminRoutes() {
                     call.respond(studentsList)
                 }
 
-                // POST /api/admin/create-student
                 post("/create-student") {
                     val principal = call.principal<JWTPrincipal>()
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
@@ -201,32 +242,28 @@ fun Application.configureAdminRoutes() {
                             }
                         }
                         call.respond(HttpStatusCode.Created, ApiResponse("Student registered successfully."))
-                    } catch (_: org.jetbrains.exposed.exceptions.ExposedSQLException) {
+                    } catch (_: ExposedSQLException) {
                         call.respond(HttpStatusCode.Conflict, ApiResponse("Student with this register number already exists."))
                     } catch (_: Exception) {
                         call.respond(HttpStatusCode.BadRequest, ApiResponse("Invalid date format or student details."))
                     }
                 }
 
-                // POST /api/admin/delete-student
                 post("/delete-student") {
                     val req = call.receive<DeleteStudentRequest>()
                     transaction {
                         Users.deleteWhere { registerNumber eq req.registerNumber }
                         AttendanceRecords.deleteWhere { registerNumber eq req.registerNumber }
+                        StudentElectiveMappings.deleteWhere { registerNumber eq req.registerNumber }
                     }
                     call.respond(ApiResponse("Student removed."))
                 }
 
-                // GET /api/admin/batches
                 get("/batches") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
                         val adminDepartment = principal?.payload?.getClaim("department")?.asString()
-                            ?: return@get call.respond(
-                                HttpStatusCode.Unauthorized,
-                                ApiResponse("Department missing from token payload.")
-                            )
+                            ?: return@get call.respond(HttpStatusCode.Unauthorized, ApiResponse("Department missing from token payload."))
 
                         val batchList = transaction {
                             Batches
@@ -250,14 +287,10 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.OK, batchList)
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to fetch batches")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to fetch batches"))
                     }
                 }
 
-                // POST /api/admin/create-batch
                 post("/create-batch") {
                     try {
                         val req = call.receive<CreateBatchRequest>()
@@ -265,10 +298,7 @@ fun Application.configureAdminRoutes() {
 
                         val principal = call.principal<JWTPrincipal>()
                         val adminDepartment = principal?.payload?.getClaim("department")?.asString()
-                            ?: return@post call.respond(
-                                HttpStatusCode.Unauthorized,
-                                ApiResponse("Department missing from token payload.")
-                            )
+                            ?: return@post call.respond(HttpStatusCode.Unauthorized, ApiResponse("Department missing from token payload."))
 
                         val exists = transaction {
                             Batches.selectAll()
@@ -291,14 +321,10 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.Created, ApiResponse("Batch $batchName created successfully."))
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to process batch creation")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to process batch creation"))
                     }
                 }
 
-                // POST /api/admin/delete-batch
                 post("/delete-batch") {
                     val req = call.receive<DeleteBatchRequest>()
                     transaction {
@@ -308,6 +334,7 @@ fun Application.configureAdminRoutes() {
 
                         if (studentRegNums.isNotEmpty()) {
                             AttendanceRecords.deleteWhere { registerNumber inList studentRegNums }
+                            StudentElectiveMappings.deleteWhere { registerNumber inList studentRegNums }
                             Users.deleteWhere { (batch eq req.batch) and (role eq "student") }
                         }
 
@@ -316,7 +343,6 @@ fun Application.configureAdminRoutes() {
                     call.respond(ApiResponse("Batch and all associated student records removed."))
                 }
 
-                // GET /api/admin/batch-students?batch=2024-2027
                 get("/batch-students") {
                     val batchParam = call.request.queryParameters["batch"]
                     if (batchParam.isNullOrBlank()) {
@@ -344,7 +370,6 @@ fun Application.configureAdminRoutes() {
                     call.respond(studentRoster)
                 }
 
-                // GET /api/admin/teachers
                 get("/teachers") {
                     val principal = call.principal<JWTPrincipal>()
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
@@ -364,7 +389,6 @@ fun Application.configureAdminRoutes() {
                     call.respond(teachersList)
                 }
 
-                // POST /api/admin/create-teacher
                 post("/create-teacher") {
                     val principal = call.principal<JWTPrincipal>()
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
@@ -383,7 +407,6 @@ fun Application.configureAdminRoutes() {
                             }
                         }
 
-                        // Hash password inside the endpoint block
                         val plainPassword = req.password?.takeIf { it.isNotBlank() } ?: rawDob
                         val hashedPassword = BCrypt.hashpw(plainPassword, BCrypt.gensalt())
 
@@ -394,18 +417,17 @@ fun Application.configureAdminRoutes() {
                                 it[Teachers.department] = department
                                 it[dateOfBirth] = parsedDob
                                 it[phoneNumber] = req.phoneNumber?.trim() ?: "N/A"
-                                it[password] = plainPassword
+                                it[password] = hashedPassword
                             }
                         }
                         call.respond(HttpStatusCode.Created, ApiResponse("Teacher created successfully."))
-                    } catch (_: org.jetbrains.exposed.exceptions.ExposedSQLException) {
+                    } catch (_: ExposedSQLException) {
                         call.respond(HttpStatusCode.Conflict, ApiResponse("Teacher with this ID already exists."))
                     } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, ApiResponse("Invalid request: ${e.localizedMessage ?: "Invalid date or teacher details."}"))
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse("Invalid request: ${e.message}"))
                     }
                 }
 
-                // POST /api/admin/delete-teacher
                 post("/delete-teacher") {
                     val req = call.receive<DeleteTeacherRequest>()
                     transaction {
@@ -414,7 +436,6 @@ fun Application.configureAdminRoutes() {
                     call.respond(ApiResponse("Teacher account removed."))
                 }
 
-                // GET /api/admin/pending
                 get("/pending") {
                     val pendingLogs = transaction {
                         AttendanceRecords.selectAll().where { AttendanceRecords.status eq "PENDING" }
@@ -431,7 +452,6 @@ fun Application.configureAdminRoutes() {
                     call.respond(pendingLogs)
                 }
 
-                // POST /api/admin/approve-log
                 post("/approve-log") {
                     val req = call.receive<ActionLogRequest>()
                     transaction {
@@ -442,7 +462,6 @@ fun Application.configureAdminRoutes() {
                     call.respond(ApiResponse("Log approved."))
                 }
 
-                // POST /api/admin/reject-log
                 post("/reject-log") {
                     val req = call.receive<ActionLogRequest>()
                     transaction {
@@ -451,7 +470,6 @@ fun Application.configureAdminRoutes() {
                     call.respond(ApiResponse("Log rejected."))
                 }
 
-                // POST /api/admin/rollover-semester
                 post("/rollover-semester") {
                     val principal = call.principal<JWTPrincipal>()
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
@@ -462,24 +480,22 @@ fun Application.configureAdminRoutes() {
                     call.respond(ApiResponse("Semester rollover complete."))
                 }
 
-                // GET /api/admin/subjects
                 get("/subjects") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
                         val adminDepartment = principal?.payload?.getClaim("department")?.asString()
-                            ?: return@get call.respond(
-                                HttpStatusCode.Unauthorized,
-                                ApiResponse("Department missing from token payload.")
-                            )
+                            ?: return@get call.respond(HttpStatusCode.Unauthorized, ApiResponse("Department missing from token payload."))
 
                         val subjectList = transaction {
                             Subjects.selectAll()
-                                .where { Subjects.department eq adminDepartment }
+                                .where { (Subjects.department eq adminDepartment) or (Subjects.subjectType eq "GLOBAL") }
                                 .map { row ->
                                     SubjectResponse(
                                         id = row[Subjects.id],
                                         code = row[Subjects.code],
-                                        name = row[Subjects.name]
+                                        name = row[Subjects.name],
+                                        subjectType = row[Subjects.subjectType],
+                                        groupCode = row[Subjects.groupCode]
                                     )
                                 }
                         }
@@ -487,66 +503,56 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.OK, subjectList)
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to fetch subjects.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to fetch subjects."))
                     }
                 }
 
-// POST /api/admin/subjects
                 post("/subjects") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
                         val adminDepartment = principal?.payload?.getClaim("department")?.asString()
-                            ?: return@post call.respond(
-                                HttpStatusCode.Unauthorized,
-                                ApiResponse("Department missing from token payload.")
-                            )
+                            ?: return@post call.respond(HttpStatusCode.Unauthorized, ApiResponse("Department missing from token payload."))
 
                         val req = call.receive<SubjectDTO>()
+                        val typeUpper = req.subjectType?.trim()?.uppercase() ?: "LOCAL"
+                        val groupCodeVal = if (typeUpper == "GLOBAL") req.groupCode?.trim()?.uppercase() else null
+
+                        if (typeUpper == "GLOBAL" && groupCodeVal.isNullOrBlank()) {
+                            return@post call.respond(HttpStatusCode.BadRequest, ApiResponse("Group code is required for Global Subjects."))
+                        }
 
                         val created = transaction {
                             Subjects.insertIgnore {
                                 it[code] = req.code.trim().uppercase()
                                 it[name] = req.name.trim()
                                 it[department] = adminDepartment
+                                it[subjectType] = typeUpper
+                                it[groupCode] = groupCodeVal
                             }.insertedCount > 0
                         }
 
                         if (created) {
-                            call.respond(HttpStatusCode.Created, ApiResponse("Subject added to catalog."))
+                            call.respond(HttpStatusCode.Created, ApiResponse("Subject added to catalog successfully."))
                         } else {
                             call.respond(HttpStatusCode.Conflict, ApiResponse("Subject code already exists."))
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to add subject.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to add subject."))
                     }
                 }
 
-                // DELETE /api/admin/subjects/{code}
                 delete("/subjects/{code}") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
                         val adminDepartment = principal?.payload?.getClaim("department")?.asString()
-                            ?: return@delete call.respond(
-                                HttpStatusCode.Unauthorized,
-                                ApiResponse("Department missing from token payload.")
-                            )
+                            ?: return@delete call.respond(HttpStatusCode.Unauthorized, ApiResponse("Department missing from token payload."))
 
                         val subjectCode = call.parameters["code"]?.trim()
                         if (subjectCode.isNullOrEmpty()) {
-                            return@delete call.respond(
-                                HttpStatusCode.BadRequest,
-                                ApiResponse("Subject code required.")
-                            )
+                            return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse("Subject code required."))
                         }
 
-                        // Check if the subject is currently assigned to any batch/semester
                         val isLinked = transaction {
                             BatchSubjects.selectAll()
                                 .where { BatchSubjects.subjectCode eq subjectCode }
@@ -554,10 +560,7 @@ fun Application.configureAdminRoutes() {
                         }
 
                         if (isLinked) {
-                            return@delete call.respond(
-                                HttpStatusCode.Conflict,
-                                ApiResponse("Cannot delete subject because it is linked to active semester mappings. Unlink it first!")
-                            )
+                            return@delete call.respond(HttpStatusCode.Conflict, ApiResponse("Cannot delete subject because it is linked to active semester mappings. Unlink it first!"))
                         }
 
                         val deletedRows = transaction {
@@ -573,14 +576,121 @@ fun Application.configureAdminRoutes() {
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to delete subject.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to delete subject."))
                     }
                 }
 
-// POST /api/admin/batches/assign-subject
+                get("/global-groups") {
+                    try {
+                        val groups = transaction {
+                            Subjects.selectAll()
+                                .where { (Subjects.subjectType eq "GLOBAL") and (Subjects.groupCode.isNotNull()) }
+                                .groupBy { it[Subjects.groupCode]!! }
+                                .map { (groupCode, rows) ->
+                                    GlobalGroupResponse(
+                                        groupCode = groupCode,
+                                        subjects = rows.map { row ->
+                                            SubjectResponse(
+                                                id = row[Subjects.id],
+                                                code = row[Subjects.code],
+                                                name = row[Subjects.name],
+                                                subjectType = row[Subjects.subjectType],
+                                                groupCode = row[Subjects.groupCode]
+                                            )
+                                        }
+                                    )
+                                }
+                        }
+                        call.respond(HttpStatusCode.OK, groups)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse("Failed to fetch global groups."))
+                    }
+                }
+
+                post("/students/toggle-elective") {
+                    try {
+                        val req = call.receive<ToggleStudentElectiveRequest>()
+                        val regUpper = req.registerNumber.trim().uppercase()
+                        val groupUpper = req.groupCode.trim().uppercase()
+                        val subjectUpper = req.subjectCode.trim().uppercase()
+
+                        transaction {
+                            if (req.action.uppercase() == "REMOVE") {
+                                StudentElectiveMappings.deleteWhere {
+                                    (registerNumber eq regUpper) and
+                                            (batch eq req.batch) and
+                                            (semester eq req.semester) and
+                                            (groupCode eq groupUpper) and
+                                            (subjectCode eq subjectUpper)
+                                }
+                            } else {
+                                StudentElectiveMappings.deleteWhere {
+                                    (registerNumber eq regUpper) and
+                                            (batch eq req.batch) and
+                                            (semester eq req.semester) and
+                                            (groupCode eq groupUpper)
+                                }
+
+                                StudentElectiveMappings.insert {
+                                    it[registerNumber] = regUpper
+                                    it[batch] = req.batch
+                                    it[semester] = req.semester
+                                    it[groupCode] = groupUpper
+                                    it[subjectCode] = subjectUpper
+                                }
+                            }
+                        }
+
+                        call.respond(HttpStatusCode.OK, ApiResponse("Student elective choice updated successfully."))
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse("Failed to update student elective choice."))
+                    }
+                }
+
+                get("/students/electives") {
+                    try {
+                        val batchParam = call.request.queryParameters["batch"] ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse("Batch required."))
+                        val semParam = call.request.queryParameters["semester"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse("Semester required."))
+                        val groupCodeParam = call.request.queryParameters["groupCode"]?.uppercase() ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse("Group code required."))
+
+                        val principal = call.principal<JWTPrincipal>()
+                        val adminDept = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
+
+                        val result = transaction {
+                            Users.selectAll()
+                                .where { (Users.batch eq batchParam) and (Users.department eq adminDept) and (Users.role eq "student") }
+                                .map { row ->
+                                    val reg = row[Users.registerNumber]
+                                    val name = row[Users.name]
+
+                                    val currentElective = StudentElectiveMappings.selectAll()
+                                        .where {
+                                            (StudentElectiveMappings.registerNumber eq reg) and
+                                                    (StudentElectiveMappings.batch eq batchParam) and
+                                                    (StudentElectiveMappings.semester eq semParam) and
+                                                    (StudentElectiveMappings.groupCode eq groupCodeParam)
+                                        }
+                                        .map { it[StudentElectiveMappings.subjectCode] }
+                                        .firstOrNull()
+
+                                    StudentElectiveStatusDTO(
+                                        registerNumber = reg,
+                                        name = name,
+                                        batch = batchParam,
+                                        assignedSubjectCode = currentElective
+                                    )
+                                }
+                        }
+
+                        call.respond(HttpStatusCode.OK, result)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse("Failed to fetch elective student list."))
+                    }
+                }
+
                 post("/batches/assign-subject") {
                     try {
                         val req = call.receive<AssignSubjectRequest>()
@@ -596,35 +706,56 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.Created, ApiResponse("Subject assigned successfully."))
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to assign subject.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to assign subject."))
                     }
                 }
 
-// GET /api/admin/assigned-subjects
+                post("/batches/assign-global-group") {
+                    try {
+                        val req = call.receive<AssignGlobalGroupRequest>()
+                        val groupUpper = req.groupCode.trim().uppercase()
+
+                        transaction {
+                            val groupSubjects = Subjects.selectAll()
+                                .where { (Subjects.groupCode eq groupUpper) and (Subjects.subjectType eq "GLOBAL") }
+                                .map { it[Subjects.code] }
+
+                            groupSubjects.forEach { code ->
+                                BatchSubjects.insertIgnore {
+                                    it[batch] = req.batch
+                                    it[semester] = req.semester
+                                    it[subjectCode] = code
+                                    it[groupCode] = groupUpper
+                                }
+                            }
+                        }
+
+                        call.respond(HttpStatusCode.Created, ApiResponse("Global subject group linked to semester."))
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse("Failed to assign global group."))
+                    }
+                }
+
                 get("/assigned-subjects") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
                         val adminDepartment = principal?.payload?.getClaim("department")?.asString()
-                            ?: return@get call.respond(
-                                HttpStatusCode.Unauthorized,
-                                ApiResponse("Department missing from token payload.")
-                            )
+                            ?: return@get call.respond(HttpStatusCode.Unauthorized, ApiResponse("Department missing from token payload."))
 
                         val assignedList = transaction {
                             BatchSubjects
                                 .innerJoin(Subjects, { BatchSubjects.subjectCode }, { Subjects.code })
                                 .selectAll()
-                                .where { Subjects.department eq adminDepartment }
+                                .where { (Subjects.department eq adminDepartment) or (Subjects.subjectType eq "GLOBAL") }
                                 .map { row ->
                                     AssignedSubjectDTO(
                                         id = row[BatchSubjects.id],
                                         batch = row[BatchSubjects.batch],
                                         semester = row[BatchSubjects.semester],
                                         subjectCode = row[BatchSubjects.subjectCode],
-                                        subjectName = row[Subjects.name]
+                                        subjectName = row[Subjects.name],
+                                        groupCode = row[BatchSubjects.groupCode]
                                     )
                                 }
                         }
@@ -632,21 +763,14 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.OK, assignedList)
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to fetch assigned subjects.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to fetch assigned subjects."))
                     }
                 }
 
-// DELETE /api/admin/assigned-subjects/{id}
                 delete("/assigned-subjects/{id}") {
                     try {
                         val assignmentId = call.parameters["id"]?.toIntOrNull()
-                            ?: return@delete call.respond(
-                                HttpStatusCode.BadRequest,
-                                ApiResponse("Valid assignment ID required.")
-                            )
+                            ?: return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse("Valid assignment ID required."))
 
                         val deletedRows = transaction {
                             BatchSubjects.deleteWhere { id eq assignmentId }
@@ -659,14 +783,30 @@ fun Application.configureAdminRoutes() {
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to unlink subject.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to unlink subject."))
                     }
                 }
 
-// GET /api/admin/batches/{batch}/semester/{sem}/subjects
+                post("/assigned-groups/delete") {
+                    try {
+                        val req = call.receive<DeleteGroupMappingRequest>()
+                        val batchVal = req.batch.trim()
+                        val semVal = req.semester
+                        val groupVal = req.groupCode.trim().uppercase()
+
+                        val deletedRows = transaction {
+                            BatchSubjects.deleteWhere {
+                                (batch eq batchVal) and (semester eq semVal) and (groupCode eq groupVal)
+                            }
+                        }
+
+                        call.respond(HttpStatusCode.OK, ApiResponse("Global subject group unlinked successfully ($deletedRows rows removed)."))
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse("Failed to unlink global group."))
+                    }
+                }
+
                 get("/batches/{batch}/semester/{sem}/subjects") {
                     try {
                         val batchName = call.parameters["batch"]
@@ -677,13 +817,15 @@ fun Application.configureAdminRoutes() {
                         val subjects = transaction {
                             BatchSubjects
                                 .innerJoin(Subjects, { BatchSubjects.subjectCode }, { Subjects.code })
-                                .select(Subjects.id, Subjects.code, Subjects.name)
+                                .select(Subjects.id, Subjects.code, Subjects.name, Subjects.subjectType, Subjects.groupCode)
                                 .where { (BatchSubjects.batch eq batchName) and (BatchSubjects.semester eq semester) }
                                 .map { row ->
                                     SubjectResponse(
                                         id = row[Subjects.id],
                                         code = row[Subjects.code],
-                                        name = row[Subjects.name]
+                                        name = row[Subjects.name],
+                                        subjectType = row[Subjects.subjectType],
+                                        groupCode = row[Subjects.groupCode]
                                     )
                                 }
                         }
@@ -691,22 +833,15 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.OK, subjects)
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to fetch semester subjects.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to fetch semester subjects."))
                     }
                 }
 
-                // GET /api/admin/attendance-logs
                 get("/attendance-logs") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
                         val adminDepartment = principal?.payload?.getClaim("department")?.asString()
-                            ?: return@get call.respond(
-                                HttpStatusCode.Unauthorized,
-                                ApiResponse("Department missing from token payload.")
-                            )
+                            ?: return@get call.respond(HttpStatusCode.Unauthorized, ApiResponse("Department missing from token payload."))
 
                         val dateParam = call.request.queryParameters["date"]
                         val batchParam = call.request.queryParameters["batch"]
@@ -771,14 +906,10 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.OK, logs)
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to fetch attendance logs.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to fetch attendance logs."))
                     }
                 }
 
-                // PUT /api/admin/attendance/{id}
                 put("/attendance/{id}") {
                     try {
                         val idParam = call.parameters["id"]?.toIntOrNull()
@@ -802,7 +933,6 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // POST /api/admin/update-attendance
                 post("/update-attendance") {
                     try {
                         val req = call.receive<UpdateAttendanceStatusRequest>()
@@ -825,9 +955,6 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // --- TIMETABLE ROUTES ---
-
-                // GET /api/admin/timetable?batch=2024-2027&semester=3&day=Monday
                 get("/timetable") {
                     try {
                         val batchParam = call.request.queryParameters["batch"]
@@ -835,10 +962,7 @@ fun Application.configureAdminRoutes() {
                         val dayParam = call.request.queryParameters["day"]
 
                         if (batchParam.isNullOrBlank() || semesterParam == null) {
-                            call.respond(
-                                HttpStatusCode.BadRequest,
-                                ApiResponse("Batch and semester parameters are required.")
-                            )
+                            call.respond(HttpStatusCode.BadRequest, ApiResponse("Batch and semester parameters are required."))
                             return@get
                         }
 
@@ -866,7 +990,7 @@ fun Application.configureAdminRoutes() {
                                             TimetableSlotResponse(
                                                 hour = row[Timetables.hour],
                                                 subjectCode = row[Timetables.subjectCode],
-                                                subjectName = row.getOrNull(Subjects.name)
+                                                subjectName = row.getOrNull(Subjects.name) ?: row[Timetables.subjectCode]
                                             )
                                         }
                                     )
@@ -876,35 +1000,32 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.OK, timetableDays)
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to fetch timetable.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to fetch timetable."))
                     }
                 }
 
-                // POST /api/admin/timetable
                 post("/timetable") {
                     try {
                         val req = call.receive<SaveTimetableRequest>()
 
-                        val activeSubjects = transaction {
-                            BatchSubjects
+                        val (activeSubjects, activeGroupCodes) = transaction {
+                            val rows = BatchSubjects
                                 .selectAll()
                                 .where { (BatchSubjects.batch eq req.batch) and (BatchSubjects.semester eq req.semester) }
-                                .map { it[BatchSubjects.subjectCode] }
-                                .toSet()
+
+                            val codes = rows.map { it[BatchSubjects.subjectCode] }.toSet()
+                            val groups = rows.mapNotNull { it[BatchSubjects.groupCode] }.toSet()
+
+                            Pair(codes, groups)
                         }
 
                         val invalidSlot = req.slots.firstOrNull {
-                            !it.subjectCode.isNullOrBlank() && !activeSubjects.contains(it.subjectCode)
+                            val code = it.subjectCode
+                            !code.isNullOrBlank() && !activeSubjects.contains(code) && !activeGroupCodes.contains(code)
                         }
 
                         if (invalidSlot != null) {
-                            call.respond(
-                                HttpStatusCode.BadRequest,
-                                ApiResponse("Subject ${invalidSlot.subjectCode} is not actively mapped to ${req.batch} Sem ${req.semester}.")
-                            )
+                            call.respond(HttpStatusCode.BadRequest, ApiResponse("Subject/Group ${invalidSlot.subjectCode} is not actively mapped to ${req.batch} Sem ${req.semester}."))
                             return@post
                         }
 
@@ -913,10 +1034,7 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.OK, ApiResponse("Timetable updated successfully."))
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        call.respond(
-                            HttpStatusCode.InternalServerError,
-                            ApiResponse(e.message ?: "Failed to save timetable.")
-                        )
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to save timetable."))
                     }
                 }
 

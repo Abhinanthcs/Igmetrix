@@ -12,7 +12,7 @@ object Admins : Table("admins") {
 
     override val primaryKey = PrimaryKey(id)
 }
-// --- NEW DEDICATED TEACHERS TABLE ---
+
 object Teachers : Table("teachers") {
     val teacherId = varchar("teacher_id", 50)
     val name = varchar("name", 100)
@@ -52,7 +52,6 @@ object AttendanceRecords : Table("attendance_records") {
 
 object Batches : Table("batches") {
     val id = integer("id").autoIncrement()
-    // Add .unique() here
     val batch = varchar("batch", 20).uniqueIndex()
     val department = varchar("department", 50)
     val studentCount = integer("student_count").default(0)
@@ -65,11 +64,12 @@ object Subjects : Table("subjects") {
     val code = varchar("code", 20).uniqueIndex()
     val name = varchar("name", 100)
     val department = varchar("department", 50)
+    val subjectType = varchar("subject_type", 255).default("LOCAL")
+    val groupCode = varchar("group_code", 50).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
 
-// 2. Tracks the active semester of each batch (e.g., Semester 1, 2, 3...)
 object BatchSemesters : Table("batch_semesters") {
     val id = integer("id").autoIncrement()
     val batch = varchar("batch", 20).references(Batches.batch)
@@ -79,17 +79,33 @@ object BatchSemesters : Table("batch_semesters") {
     override val primaryKey = PrimaryKey(id)
 }
 
-// 3. Maps subjects to a batch for a specific semester
-object BatchSubjects : Table("batch_subjects") {
+// Maps individual students to their chosen elective subject within a group code slot
+object StudentElectiveMappings : Table("student_elective_mappings") {
     val id = integer("id").autoIncrement()
+    val registerNumber = varchar("register_number", 50).references(Users.registerNumber, onDelete = ReferenceOption.CASCADE)
     val batch = varchar("batch", 20).references(Batches.batch, onDelete = ReferenceOption.CASCADE)
     val semester = integer("semester")
+    val groupCode = varchar("group_code", 50)
     val subjectCode = varchar("subject_code", 20).references(Subjects.code, onDelete = ReferenceOption.CASCADE)
 
     override val primaryKey = PrimaryKey(id)
 
     init {
-        // Enforces unique assignment per batch, semester, and subject
+        // Strict constraint: Single student choice per group slot in a batch/semester
+        uniqueIndex("unique_student_group_slot", registerNumber, batch, semester, groupCode)
+    }
+}
+
+object BatchSubjects : Table("batch_subjects") {
+    val id = integer("id").autoIncrement()
+    val batch = varchar("batch", 20).references(Batches.batch, onDelete = ReferenceOption.CASCADE)
+    val semester = integer("semester")
+    val subjectCode = varchar("subject_code", 20).references(Subjects.code, onDelete = ReferenceOption.CASCADE)
+    val groupCode = varchar("group_code", 50).nullable()
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
         uniqueIndex("unique_batch_sem_subject", batch, semester, subjectCode)
     }
 }
@@ -98,14 +114,13 @@ object Timetables : Table("timetables") {
     val id = integer("id").autoIncrement()
     val batch = varchar("batch", 30)
     val semester = integer("semester")
-    val day = varchar("day", 15) // e.g. MONDAY, TUESDAY
-    val hour = integer("hour") // e.g. 1 to 5
+    val day = varchar("day", 15)
+    val hour = integer("hour")
     val subjectCode = varchar("subject_code", 30).nullable()
 
     override val primaryKey = PrimaryKey(id)
 
     init {
-        // Enforce unique timetable slot per batch, semester, day, and hour
         uniqueIndex(batch, semester, day, hour)
     }
 }
