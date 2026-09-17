@@ -80,7 +80,8 @@ data class SubjectResponse(
     val code: String,
     val name: String,
     val subjectType: String? = "LOCAL",
-    val groupCode: String? = null
+    val groupCode: String? = null,
+    val department: String? = null
 )
 
 @Serializable
@@ -90,7 +91,9 @@ data class AssignedSubjectDTO(
     val semester: Int,
     val subjectCode: String,
     val subjectName: String,
-    val groupCode: String? = null
+    val groupCode: String? = null,
+    val subjectType: String? = "LOCAL",
+    val department: String? = null
 )
 
 @Serializable
@@ -175,7 +178,9 @@ data class SaveTimetableRequest(
 data class TimetableSlotResponse(
     val hour: Int,
     val subjectCode: String? = null,
-    val subjectName: String? = null
+    val subjectName: String? = null,
+    val groupCode: String? = null,
+    val subjectType: String? = null
 )
 
 @Serializable
@@ -495,7 +500,8 @@ fun Application.configureAdminRoutes() {
                                         code = row[Subjects.code],
                                         name = row[Subjects.name],
                                         subjectType = row[Subjects.subjectType],
-                                        groupCode = row[Subjects.groupCode]
+                                        groupCode = row[Subjects.groupCode],
+                                        department = row[Subjects.department]
                                     )
                                 }
                         }
@@ -746,8 +752,9 @@ fun Application.configureAdminRoutes() {
                         val assignedList = transaction {
                             BatchSubjects
                                 .innerJoin(Subjects, { BatchSubjects.subjectCode }, { Subjects.code })
+                                .innerJoin(Batches, { BatchSubjects.batch }, { Batches.batch })
                                 .selectAll()
-                                .where { (Subjects.department eq adminDepartment) or (Subjects.subjectType eq "GLOBAL") }
+                                .where { Batches.department eq adminDepartment }
                                 .map { row ->
                                     AssignedSubjectDTO(
                                         id = row[BatchSubjects.id],
@@ -755,7 +762,9 @@ fun Application.configureAdminRoutes() {
                                         semester = row[BatchSubjects.semester],
                                         subjectCode = row[BatchSubjects.subjectCode],
                                         subjectName = row[Subjects.name],
-                                        groupCode = row[BatchSubjects.groupCode]
+                                        groupCode = row[BatchSubjects.groupCode],
+                                        subjectType = row[Subjects.subjectType],
+                                        department = row[Subjects.department]
                                     )
                                 }
                         }

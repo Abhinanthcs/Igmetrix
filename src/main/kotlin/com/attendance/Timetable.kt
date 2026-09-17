@@ -3,6 +3,10 @@ package com.attendance
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.insert
+
 
 object TimetableRepository {
 
@@ -29,20 +33,22 @@ object TimetableRepository {
 
     fun saveTimetableForDay(req: SaveTimetableRequest) {
         transaction {
+            // 1. Delete existing slots for this specific batch, semester, and day
             Timetables.deleteWhere {
                 (Timetables.batch eq req.batch) and
                         (Timetables.semester eq req.semester) and
                         (Timetables.day eq req.day)
             }
 
+            // 2. Insert the updated slots
             req.slots.forEach { slot ->
                 if (!slot.subjectCode.isNullOrBlank()) {
                     Timetables.insert {
-                        it[Timetables.batch] = req.batch
-                        it[Timetables.semester] = req.semester
-                        it[Timetables.day] = req.day
-                        it[Timetables.hour] = slot.hour
-                        it[Timetables.subjectCode] = slot.subjectCode
+                        it[batch] = req.batch
+                        it[semester] = req.semester
+                        it[day] = req.day
+                        it[hour] = slot.hour
+                        it[subjectCode] = slot.subjectCode
                     }
                 }
             }

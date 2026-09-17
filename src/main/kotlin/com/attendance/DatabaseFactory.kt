@@ -21,7 +21,8 @@ object DatabaseFactory {
                 Batches,
                 Subjects,
                 Timetables,
-                BatchSubjects
+                BatchSubjects,
+                StudentElectiveMappings
             )
         }
     }

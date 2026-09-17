@@ -12,6 +12,7 @@ import org.jetbrains.exposed.sql.batchInsert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
+import org.jetbrains.exposed.sql.andWhere
 
 @Serializable
 data class StudentStatus(
@@ -40,23 +41,68 @@ fun Route.configureTeacherRoutes() {
 
     // Filter students by department query param (?department=BCA)
     get("/teacher/students") {
+        val batchParam = call.request.queryParameters["batch"]
+        val semParam = call.request.queryParameters["semester"]?.toIntOrNull()
+        val subjectCodeParam = call.request.queryParameters["subjectCode"]
         val dept = call.request.queryParameters["department"]
 
+        if (batchParam.isNullOrBlank()) {
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Batch parameter is required"))
+            return@get
+        }
+
         val studentList = transaction {
-            val query = if (!dept.isNullOrBlank()) {
-                Users.selectAll().where { (Users.department eq dept) and (Users.role eq "student") }
-            } else {
-                Users.selectAll().where { Users.role eq "student" }
+            var isGlobalSubject = false
+
+            if (!subjectCodeParam.isNullOrBlank()) {
+                val subjectType = Subjects.selectAll()
+                    .where { Subjects.code eq subjectCodeParam }
+                    .map { it[Subjects.subjectType] }
+                    .firstOrNull()
+
+                if (subjectType?.uppercase() == "GLOBAL") {
+                    isGlobalSubject = true
+                }
             }
 
-            query.map { row ->
-                StudentUser(
-                    registerNumber = row[Users.registerNumber],
-                    name = row[Users.name],
-                    department = row[Users.department]
-                )
+            if (isGlobalSubject && semParam != null && !subjectCodeParam.isNullOrBlank()) {
+                // Return ONLY students assigned to this specific global elective
+                (Users innerJoin StudentElectiveMappings)
+                    .selectAll()
+                    .where {
+                        (Users.batch eq batchParam) and
+                                (Users.role eq "student") and
+                                (StudentElectiveMappings.batch eq batchParam) and
+                                (StudentElectiveMappings.semester eq semParam) and
+                                (StudentElectiveMappings.subjectCode eq subjectCodeParam)
+                    }
+                    .map { row ->
+                        StudentUser(
+                            registerNumber = row[Users.registerNumber],
+                            name = row[Users.name],
+                            department = row[Users.department]
+                        )
+                    }
+            } else {
+                // Local / Core Subject: Return all students in the batch
+                var query = Users.selectAll().where {
+                    (Users.batch eq batchParam) and (Users.role eq "student")
+                }
+
+                if (!dept.isNullOrBlank()) {
+                    query = query.andWhere { Users.department eq dept }
+                }
+
+                query.map { row ->
+                    StudentUser(
+                        registerNumber = row[Users.registerNumber],
+                        name = row[Users.name],
+                        department = row[Users.department]
+                    )
+                }
             }
         }
+
         call.respond(studentList)
     }
 

@@ -504,6 +504,7 @@
                     <th class="py-3 px-6">Semester</th>
                     <th class="py-3 px-6">Subject Code</th>
                     <th class="py-3 px-6">Subject Name</th>
+                    <th class="py-3 px-6">Type</th>
                     <th class="py-3 px-6 text-right">Actions</th>
                 </tr>
                 </thead>
@@ -511,23 +512,47 @@
             </table>
         </div>
 
-        <!-- Master Subject Catalog Pool -->
+        <!-- LOCAL SUBJECT CATALOG POOL -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Master Subject Catalog Pool</h4>
+                <div>
+                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Local Core Subject Catalog</h4>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Core subjects owned and managed by your department</p>
+                </div>
             </div>
             <table class="w-full text-left text-xs">
                 <thead class="bg-slate-50 text-slate-500 font-mono uppercase font-semibold border-b border-slate-200">
                 <tr>
                     <th class="py-3 px-6">Subject Code</th>
                     <th class="py-3 px-6">Subject Name</th>
-                    <th class="py-3 px-6">Type</th>
-                    <th class="py-3 px-6">Group Code</th>
                     <th class="py-3 px-6">Status</th>
                     <th class="py-3 px-6 text-right">Action</th>
                 </tr>
                 </thead>
-                <tbody id="subject-table-body" class="divide-y divide-slate-100"></tbody>
+                <tbody id="local-subject-table-body" class="divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+
+        <!-- GLOBAL SUBJECT CATALOG POOL -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <div>
+                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Global Elective Subject Catalog</h4>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Cross-departmental open electives grouped by Group Code</p>
+                </div>
+            </div>
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-500 font-mono uppercase font-semibold border-b border-slate-200">
+                <tr>
+                    <th class="py-3 px-6">Subject Code</th>
+                    <th class="py-3 px-6">Subject Name</th>
+                    <th class="py-3 px-6">Group Code</th>
+                    <th class="py-3 px-6">Owner Department</th>
+                    <th class="py-3 px-6">Status</th>
+                    <th class="py-3 px-6 text-right">Action</th>
+                </tr>
+                </thead>
+                <tbody id="global-subject-table-body" class="divide-y divide-slate-100"></tbody>
             </table>
         </div>
     </div>
