@@ -46,7 +46,6 @@ fun Application.module() {
                 val hasRegisterNumber = credential.payload.getClaim("registerNumber").asString() != null
                 val hasDepartment = credential.payload.getClaim("department").asString() != null
 
-                // Validates if either student/teacher (registerNumber) or admin (department) claim is present
                 if (hasRegisterNumber || hasDepartment) {
                     JWTPrincipal(credential.payload)
                 } else {
@@ -103,6 +102,10 @@ fun Application.module() {
                     path.endsWith(".css") -> ContentType.Text.CSS
                     path.endsWith(".js") -> ContentType.Application.JavaScript
                     path.endsWith(".html") -> ContentType.Text.Html
+                    path.endsWith(".svg") -> ContentType.Image.SVG
+                    path.endsWith(".png") -> ContentType.Image.PNG
+                    path.endsWith(".jpg") || path.endsWith(".jpeg") -> ContentType.Image.JPEG
+                    path.endsWith(".ico") -> ContentType.Image.XIcon
                     else -> ContentType.Application.OctetStream
                 }
                 call.respondBytes(file.readBytes(), contentType)

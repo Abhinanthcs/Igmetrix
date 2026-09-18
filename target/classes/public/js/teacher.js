@@ -56,13 +56,14 @@ async function loadBatches() {
 async function onBatchOrSemChange() {
     const batch = document.getElementById('batchSelect').value;
     const sem = document.getElementById('semesterSelect').value;
+    const subjectCode = document.getElementById('subjectSelect')?.value;
 
     if (batch && sem) {
         await loadSubjectsForBatchAndSem(batch, sem);
-        await loadStudentRoster(batch);
+        await loadStudentRoster(batch, sem, subjectCode);
         await autoSelectSubjectFromTimetable();
     } else if (batch) {
-        await loadStudentRoster(batch);
+        await loadStudentRoster(batch, sem, subjectCode);
         document.getElementById('subjectSelect').innerHTML = '<option value="">Select Subject</option>';
     } else {
         document.getElementById('subjectSelect').innerHTML = '<option value="">Select Subject</option>';
@@ -73,7 +74,7 @@ async function onBatchOrSemChange() {
     }
 }
 
-// Load subjects assigned to batch + semester (Displays "Subject Name - Subject Code")
+// Load subjects assigned to batch + semester
 async function loadSubjectsForBatchAndSem(batch, sem) {
     const subjectSelect = document.getElementById('subjectSelect');
     try {
@@ -87,7 +88,7 @@ async function loadSubjectsForBatchAndSem(batch, sem) {
                 const opt = document.createElement('option');
                 opt.value = s.code;
                 opt.dataset.name = s.name;
-                opt.textContent = `${s.name} - ${s.code}`; // Standardized to Name first, then Code
+                opt.textContent = `${s.name} - ${s.code}`;
                 subjectSelect.appendChild(opt);
             });
         }
@@ -151,10 +152,12 @@ async function autoSelectSubjectFromTimetable() {
     }
 }
 
-// Update hidden fields when subject is selected
-function onSubjectSelectChange() {
+// Update hidden fields & reload student roster when subject changes
+async function onSubjectSelectChange() {
     const subjectSelect = document.getElementById('subjectSelect');
     const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
+    const batch = document.getElementById('batchSelect')?.value;
+    const sem = document.getElementById('semesterSelect')?.value;
 
     if (selectedOption && selectedOption.value) {
         document.getElementById('subjectCode').value = selectedOption.value;
@@ -163,19 +166,33 @@ function onSubjectSelectChange() {
         document.getElementById('subjectCode').value = '';
         document.getElementById('subjectName').value = '';
     }
+
+    if (batch) {
+        await loadStudentRoster(batch, sem, selectedOption?.value);
+    }
 }
 
-// Load student roster by selected batch
-async function loadStudentRoster(batch) {
+// Load student roster (Filtered by Global Subject assignment if applicable)
+async function loadStudentRoster(batch, semester, subjectCode) {
     const tbody = document.getElementById('studentRosterBody');
     let students = [];
 
+    const queryParams = new URLSearchParams({ batch });
+    if (semester) queryParams.append('semester', semester);
+    if (subjectCode) queryParams.append('subjectCode', subjectCode);
+
     try {
-        const response = await fetch(`/api/admin/batch-students?batch=${encodeURIComponent(batch)}`, {
+        const response = await fetch(`/teacher/students?${queryParams.toString()}`, {
             headers: { ...getAuthHeader() }
         });
+
         if (response.ok) {
             students = await response.json();
+        } else {
+            const fallbackRes = await fetch(`/api/admin/batch-students?batch=${encodeURIComponent(batch)}`, {
+                headers: { ...getAuthHeader() }
+            });
+            if (fallbackRes.ok) students = await fallbackRes.json();
         }
     } catch (e) {
         console.error("Failed to fetch student roster", e);
@@ -186,7 +203,7 @@ async function loadStudentRoster(batch) {
     if (!students || students.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">No students found in this batch.</td>
+                <td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">No students assigned to this subject.</td>
             </tr>`;
         return;
     }

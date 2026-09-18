@@ -448,8 +448,10 @@ async function fetchBatches() {
     }
 }
 
+// --- UPDATED: Master Subject Catalog Pool Rendering ---
 async function fetchSubjects() {
     try {
+        const adminDept = localStorage.getItem('adminDepartment') || 'DEPT_ADMIN';
         const [subjects, assignedSubjects, globalGroups] = await Promise.all([
             apiFetch('/api/admin/subjects', 'GET').catch(() => []),
             apiFetch('/api/admin/assigned-subjects', 'GET').catch(() => []),
@@ -460,33 +462,29 @@ async function fetchSubjects() {
         globalGroupsCache = globalGroups || [];
         const linkedCodes = new Set((assignedSubjects || []).map(a => a.subjectCode));
 
-        const tbody = document.getElementById('subject-table-body');
-        if (tbody) {
-            tbody.innerHTML = (subjects && subjects.length > 0)
-                ? subjects.map(s => {
+        const localTbody = document.getElementById('local-subject-table-body');
+        const globalTbody = document.getElementById('global-subject-table-body');
+
+        const localSubjects = (subjects || []).filter(s => s.subjectType !== 'GLOBAL');
+        const globalSubjects = (subjects || []).filter(s => s.subjectType === 'GLOBAL');
+
+        // Render Local Subjects
+        if (localTbody) {
+            localTbody.innerHTML = (localSubjects.length > 0)
+                ? localSubjects.map(s => {
                     const isLinked = linkedCodes.has(s.code);
-                    const isGlobal = s.subjectType === 'GLOBAL';
                     return `
                         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
                             <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(s.code)}</td>
-                            <td class="py-3 px-6 text-slate-700">${escapeHtml(s.name)}</td>
-                            <td class="py-3 px-6">
-                                <span class="px-2 py-0.5 ${isGlobal ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-blue-500/10 text-blue-600 border-blue-500/20'} rounded text-[10px] font-bold font-mono border">
-                                    ${isGlobal ? 'GLOBAL' : 'LOCAL'}
-                                </span>
-                            </td>
-                            <td class="py-3 px-6 font-mono text-slate-600">
-                                ${s.groupCode ? `<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold">${escapeHtml(s.groupCode)}</span>` : '-'}
-                            </td>
+                            <td class="py-3 px-6 text-slate-700 font-medium">${escapeHtml(s.name)}</td>
                             <td class="py-3 px-6">
                                 <span class="px-2 py-1 bg-green-500/10 text-green-600 rounded text-[10px] font-bold font-mono">ACTIVE</span>
                             </td>
                             <td class="py-3 px-6 text-right">
                                 ${isLinked ? `
-                                    <span class="text-slate-400 text-xs italic font-semibold cursor-not-allowed" title="Unlink this subject from Active Semester Mappings above to delete">Linked</span>
+                                    <span class="text-slate-400 text-xs italic font-semibold cursor-not-allowed" title="Unlink from Active Mappings first">Linked</span>
                                 ` : `
-                                    <button onclick="deleteSubject('${escapeHtml(s.code)}')"
-                                            class="text-red-600 hover:text-red-800 font-bold text-xs transition-colors cursor-pointer">
+                                    <button onclick="deleteSubject('${escapeHtml(s.code)}')" class="text-red-600 hover:text-red-800 font-bold text-xs transition-colors cursor-pointer">
                                         Delete
                                     </button>
                                 `}
@@ -494,7 +492,46 @@ async function fetchSubjects() {
                         </tr>
                     `;
                 }).join('')
-                : `<tr><td colspan="6" class="py-4 text-center text-slate-400 italic">No subjects in catalog.</td></tr>`;
+                : `<tr><td colspan="4" class="py-4 text-center text-slate-400 italic">No local core subjects in catalog.</td></tr>`;
+        }
+
+        // Render Global Subjects
+        if (globalTbody) {
+            globalTbody.innerHTML = (globalSubjects.length > 0)
+                ? globalSubjects.map(s => {
+                    const isLinked = linkedCodes.has(s.code);
+                    const isOwnedByCurrentDept = s.department === adminDept;
+
+                    return `
+                        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                            <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(s.code)}</td>
+                            <td class="py-3 px-6 text-slate-700 font-medium">${escapeHtml(s.name)}</td>
+                            <td class="py-3 px-6 font-mono">
+                                ${s.groupCode ? `<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold text-xs">${escapeHtml(s.groupCode)}</span>` : '-'}
+                            </td>
+                            <td class="py-3 px-6 font-mono text-slate-600">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isOwnedByCurrentDept ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'}">
+                                    ${escapeHtml(s.department || adminDept)}
+                                </span>
+                            </td>
+                            <td class="py-3 px-6">
+                                <span class="px-2 py-1 bg-green-500/10 text-green-600 rounded text-[10px] font-bold font-mono">ACTIVE</span>
+                            </td>
+                            <td class="py-3 px-6 text-right">
+                                ${!isOwnedByCurrentDept ? `
+                                    <span class="text-slate-400 text-xs italic font-semibold cursor-not-allowed" title="External Global Subject owned by ${escapeHtml(s.department)}">Read-Only</span>
+                                ` : isLinked ? `
+                                    <span class="text-slate-400 text-xs italic font-semibold cursor-not-allowed" title="Unlink from Active Mappings first">Linked</span>
+                                ` : `
+                                    <button onclick="deleteSubject('${escapeHtml(s.code)}')" class="text-red-600 hover:text-red-800 font-bold text-xs transition-colors cursor-pointer">
+                                        Delete
+                                    </button>
+                                `}
+                            </td>
+                        </tr>
+                    `;
+                }).join('')
+                : `<tr><td colspan="6" class="py-4 text-center text-slate-400 italic">No global subjects registered.</td></tr>`;
         }
 
         const poolGroupSelect = document.getElementById('elective-pool-group');
@@ -517,7 +554,8 @@ async function fetchSubjects() {
 
             options += `<optgroup label="INDIVIDUAL SUBJECTS">`;
             (subjects || []).forEach(s => {
-                options += `<option value="${escapeHtml(s.code)}">${escapeHtml(s.code)} - ${escapeHtml(s.name)}</option>`;
+                const deptInfo = (s.subjectType === 'GLOBAL' && s.department !== adminDept) ? ` (${s.department})` : '';
+                options += `<option value="${escapeHtml(s.code)}">${escapeHtml(s.code)} - ${escapeHtml(s.name)}${escapeHtml(deptInfo)}</option>`;
             });
             options += `</optgroup>`;
 
@@ -730,6 +768,7 @@ function renderAssignedSubjectsTable() {
     const tbody = document.getElementById('assigned-subjects-table-body');
     const selectedBatch = document.getElementById('filter-assigned-batch')?.value || 'ALL';
     const selectedSemester = document.getElementById('filter-assigned-semester')?.value || 'ALL';
+    const adminDept = localStorage.getItem('adminDepartment') || 'DEPT_ADMIN';
 
     if (!tbody) return;
 
@@ -740,7 +779,7 @@ function renderAssignedSubjectsTable() {
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-4 px-6 text-center text-slate-400 italic">No active subject mappings found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="py-4 px-6 text-center text-slate-400 italic">No active subject mappings found.</td></tr>`;
         return;
     }
 
@@ -762,13 +801,27 @@ function renderAssignedSubjectsTable() {
 
     let html = '';
 
+    // Render Local & Standalone Global Subjects
     localItems.forEach(item => {
+        const isGlobal = item.subjectType === 'GLOBAL';
+        const isExternal = isGlobal && item.department && item.department !== adminDept;
+
+        let typeBadge = '';
+        if (isGlobal) {
+            typeBadge = isExternal
+                ? `<span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] font-bold font-mono">GLOBAL (${escapeHtml(item.department)})</span>`
+                : `<span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-bold font-mono">GLOBAL</span>`;
+        } else {
+            typeBadge = `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold font-mono">LOCAL</span>`;
+        }
+
         html += `
             <tr class="hover:bg-slate-50 transition-colors">
                 <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(item.batch)}</td>
                 <td class="py-3 px-6 font-medium text-slate-700">Sem ${item.semester}</td>
                 <td class="py-3 px-6 font-mono font-bold text-indigo-600">${escapeHtml(item.subjectCode)}</td>
                 <td class="py-3 px-6 font-medium text-slate-800">${escapeHtml(item.subjectName)}</td>
+                <td class="py-3 px-6">${typeBadge}</td>
                 <td class="py-3 px-6 text-right">
                     <button onclick="confirmUnlinkSubject('${item.id}')" class="text-red-500 hover:text-red-700 font-bold">Unlink</button>
                 </td>
@@ -776,33 +829,39 @@ function renderAssignedSubjectsTable() {
         `;
     });
 
+    // Render Consolidated Global Group Rows
     globalGroupsMap.forEach((group) => {
-        const subjectListDisplay = group.subjects.map(s => `
-            <span class="inline-block bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-mono text-[11px] mr-1 mb-1 text-slate-700">
-                ${escapeHtml(s.subjectCode)} - ${escapeHtml(s.subjectName)}
-            </span>
-        `).join('');
+            const subjectListDisplay = group.subjects.map(s => {
+                const extLabel = (s.department && s.department !== adminDept) ? ` (${s.department})` : '';
+                return `
+                    <span class="inline-block bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-mono text-[11px] mr-1 mb-1 text-slate-700">
+                        ${escapeHtml(s.subjectCode)} - ${escapeHtml(s.subjectName)}${escapeHtml(extLabel)}
+                    </span>
+                `;
+            }).join('');
 
-        html += `
-            <tr class="hover:bg-slate-50 transition-colors bg-emerald-50/20">
-                <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(group.batch)}</td>
-                <td class="py-3 px-6 font-medium text-slate-700">Sem ${group.semester}</td>
-                <td class="py-3 px-6 font-mono font-bold text-emerald-700">
-                    <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-xs">[GROUP] ${escapeHtml(group.groupCode)}</span>
-                </td>
-                <td class="py-3 px-6 font-medium text-slate-800">
-                    <div class="flex flex-wrap gap-1 mt-1">${subjectListDisplay}</div>
-                </td>
-                <td class="py-3 px-6 text-right">
-                    <button onclick="confirmUnlinkGroup('${escapeHtml(group.batch)}', ${group.semester}, '${escapeHtml(group.groupCode)}')" class="text-red-500 hover:text-red-700 font-bold">Unlink Group</button>
-                </td>
-            </tr>
-        `;
-    });
+            html += `
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                    <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(group.batch)}</td>
+                    <td class="py-3 px-6 font-medium text-slate-700">Sem ${group.semester}</td>
+                    <td class="py-3 px-6 font-mono font-bold text-emerald-600">
+                        ${escapeHtml(group.groupCode)}
+                    </td>
+                    <td class="py-3 px-6 font-medium text-slate-800">
+                        <div class="flex flex-wrap gap-1 mt-1">${subjectListDisplay}</div>
+                    </td>
+                    <td class="py-3 px-6">
+                        <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-bold font-mono">GLOBAL GROUP</span>
+                    </td>
+                    <td class="py-3 px-6 text-right">
+                        <button onclick="confirmUnlinkGroup('${escapeHtml(group.batch)}', ${group.semester}, '${escapeHtml(group.groupCode)}')" class="text-red-500 hover:text-red-700 font-bold">Unlink Group</button>
+                    </td>
+                </tr>
+            `;
+        });
 
-    tbody.innerHTML = html;
+        tbody.innerHTML = html;
 }
-
 function confirmUnlinkSubject(assignmentId) {
     requestConfirmation({
         title: 'Unlink Subject?',
