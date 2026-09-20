@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Department Admin Console</title>
+
+    <!-- Favicon Links -->
+    <link rel="icon" type="image/svg+xml" href="/image/logo/logo.svg">
+    <link rel="shortcut icon" href="/image/logo/logo.svg">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @media print {
@@ -39,17 +44,6 @@
         }
     </style>
 </head>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Department Admin Console</title>
-
-    <!-- Favicon Links -->
-    <link rel="icon" type="image/svg+xml" href="/image/logo/logo.svg">
-    <link rel="shortcut icon" href="/image/logo/logo.svg">
-
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
 <body class="bg-slate-900 font-sans text-slate-100 flex flex-col min-h-screen">
 
 <!-- Top Navigation Bar -->
@@ -57,11 +51,9 @@
     <div class="flex items-center gap-4">
         <!-- 3-Line Hamburger Menu Toggle -->
         <button id="menu-toggle-btn" onclick="toggleSidebarMenu()" class="p-2 text-slate-300 hover:text-white hover:bg-slate-800/60 rounded-xl transition-all focus:outline-none border border-slate-800">
-            <!-- 3-Line Hamburger Icon -->
             <svg id="menu-icon-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path>
             </svg>
-            <!-- Close (X) Icon -->
             <svg id="menu-icon-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -116,7 +108,7 @@
             </div>
         </div>
 
-        <!-- Single Sign Out Button -->
+        <!-- Sign Out Button -->
         <button id="logout-btn" onclick="logoutAdmin()" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-xs font-bold transition-all mt-6">
             Sign Out
         </button>
@@ -135,12 +127,13 @@
                     <h1 class="text-2xl font-black text-slate-900 tracking-tight">Student Directory</h1>
                     <p class="text-xs text-slate-500 mt-1">Manage active student identities assigned to your department</p>
                 </div>
-                <button id="open-modal-btn" onclick="openAddStudentModal()" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-all shadow-md">
-                    + Add Student
+                <button id="open-modal-btn" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-all shadow-md">
+                    + Enroll New Student
                 </button>
             </div>
 
             <!-- Search & Batch Filter Controls -->
+            <!-- Search, Batch & Semester Filter Controls -->
             <div class="flex flex-col sm:flex-row gap-3 justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                 <div class="flex flex-1 gap-3 w-full">
                     <input type="text" id="student-search" placeholder="Search by name or reg number..."
@@ -148,6 +141,17 @@
 
                     <select id="student-batch-filter" class="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none">
                         <option value="ALL">All Batches</option>
+                    </select>
+
+                    <!-- ADDED: Semester Filter Dropdown -->
+                    <select id="student-semester-filter" class="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none font-bold text-slate-700">
+                        <option value="ALL">All Semesters</option>
+                        <option value="1">Semester 1</option>
+                        <option value="2">Semester 2</option>
+                        <option value="3">Semester 3</option>
+                        <option value="4">Semester 4</option>
+                        <option value="5">Semester 5</option>
+                        <option value="6">Semester 6</option>
                     </select>
                 </div>
             </div>
@@ -290,7 +294,6 @@
                 <p class="text-xs text-slate-500 mt-1">Configure subjects in your department catalog and assign them to specific batch semesters</p>
             </div>
 
-            <!-- Forms Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Card 1: Add New Subject -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -298,13 +301,11 @@
                     <form id="create-subject-form" class="space-y-4">
                         <div>
                             <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject Code</label>
-                            <input type="text" id="subject-code" placeholder="e.g. CS101" required
-                                   class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs uppercase font-mono outline-none text-slate-800">
+                            <input type="text" id="subject-code" placeholder="e.g. CS101" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs uppercase font-mono outline-none text-slate-800">
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject Name</label>
-                            <input type="text" id="subject-name" placeholder="e.g. Data Structures" required
-                                   class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
+                            <input type="text" id="subject-name" placeholder="e.g. Data Structures" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
@@ -316,8 +317,7 @@
                             </div>
                             <div id="group-code-container" class="hidden">
                                 <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Group Code</label>
-                                <input type="text" id="subject-group-code" placeholder="e.g. LANG_SEM1"
-                                       class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs uppercase font-mono outline-none text-slate-800">
+                                <input type="text" id="subject-group-code" placeholder="e.g. LANG_SEM1" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs uppercase font-mono outline-none text-slate-800">
                             </div>
                         </div>
                         <button type="submit" class="w-full py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-all shadow-md">
@@ -326,7 +326,7 @@
                     </form>
                 </div>
 
-                <!-- Card 2: Assign Subject / Global Group to Semester -->
+                <!-- Card 2: Assign Subject to Semester -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-4">Assign Subject to Semester</h4>
                     <form id="assign-subject-form" class="space-y-4">
@@ -699,81 +699,67 @@
             </div>
         </div>
 
-        <!-- MODAL OVERLAY: ADD / EDIT STUDENT -->
-        <div id="student-modal" class="fixed inset-0 z-50 hidden bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div class="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md overflow-hidden transform transition-all">
-                <div class="p-6 border-b border-slate-100 flex justify-between items-center">
-                    <h3 id="modal-title" class="text-base font-bold text-slate-900">Add New Student</h3>
-                    <button onclick="closeStudentModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
-                </div>
-                <form id="student-form" onsubmit="handleStudentFormSubmit(event)" class="p-6 space-y-4">
-                    <input type="hidden" id="modal-student-id">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Registration Number</label>
-                        <input type="text" id="modal-reg-no" required placeholder="e.g. REG2026001" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800 font-mono">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Full Name</label>
-                        <input type="text" id="modal-student-name" required placeholder="e.g. Alex Mercer" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Batch</label>
-                        <select id="modal-batch-select" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none text-slate-800">
-                            <option value="" disabled selected>Select Batch</option>
-                        </select>
-                    </div>
-                    <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
-                        <button type="button" onclick="closeStudentModal()" class="px-4 py-2 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50 transition-all">
-                            Cancel
-                        </button>
-                        <button type="submit" class="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-all shadow-md">
-                            Save Student
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
     </main>
 
 </div>
 
-<!-- ENROLL STUDENT MODAL -->
+<!-- ENROLL STUDENT MODAL (UPDATED WITH 3 NEW FIELDS) -->
 <div id="crud-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-100">
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-100">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center">
             <h3 class="font-bold text-slate-900 text-base">Enroll New Student</h3>
             <button id="close-modal-btn" class="text-slate-400 hover:text-slate-600 font-mono font-bold text-lg">&times;</button>
         </div>
 
-        <form id="create-student-form" class="p-6 space-y-4">
-            <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Register Number</label>
-                <input type="text" id="modal-reg" placeholder="e.g. WM24BCAR013" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+        <form id="create-student-form" class="p-6 space-y-3 max-h-[80vh] overflow-y-auto">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Register Number</label>
+                    <input type="text" id="modal-reg" placeholder="e.g. WM24BCAR013" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
+                    <input type="text" id="modal-name" placeholder="e.g. Jane Doe" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+                </div>
             </div>
 
-            <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
-                <input type="text" id="modal-name" placeholder="e.g. Jane Doe" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Batch Year</label>
+                    <select id="modal-batch" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+                        <option value="" disabled selected>Select Batch</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gender</label>
+                    <select id="modal-gender" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
             </div>
 
-            <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Batch Year</label>
-                <select id="modal-batch" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
-                    <option value="" disabled selected>Select Batch</option>
-                </select>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">K-REAP PRN Number</label>
+                    <input type="text" id="modal-kreap-prn" placeholder="e.g. KR202698765" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Application Number</label>
+                    <input type="text" id="modal-app-no" placeholder="Allotment Form App No." class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+                </div>
             </div>
 
-            <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Date of Birth</label>
-                <input type="date" id="modal-dob" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
-            </div>
-
-            <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Phone Number</label>
-                <input type="tel" id="modal-phone" placeholder="e.g. 9876543210" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Date of Birth</label>
+                    <input type="date" id="modal-dob" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Phone Number</label>
+                    <input type="tel" id="modal-phone" placeholder="e.g. 9876543210" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none">
+                </div>
             </div>
 
             <div class="flex gap-3 pt-4 border-t border-slate-100">
@@ -781,6 +767,126 @@
                 <button type="submit" class="w-1/2 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-all shadow-md">Register Student</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- INDIVIDUAL STUDENT DETAILS & EDIT MODAL -->
+<div id="student-detail-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+        <!-- Header -->
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div>
+                <h3 id="detail-student-name" class="font-black text-slate-900 text-lg">Student Profile</h3>
+                <p id="detail-reg-sub" class="text-xs text-indigo-600 font-mono font-bold"></p>
+            </div>
+            <button onclick="closeStudentDetailModal()" class="text-slate-400 hover:text-slate-600 font-mono font-bold text-xl">&times;</button>
+        </div>
+
+        <div class="p-6 space-y-6 overflow-y-auto flex-1">
+            <!-- Student Details Form / Edit Panel -->
+            <form id="edit-student-form" class="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <span class="text-xs font-bold text-slate-700 uppercase tracking-wide">Personal Details & Admission Info</span>
+                    <button type="button" id="toggle-edit-btn" onclick="toggleEditMode()" class="px-3 py-1 bg-indigo-600 text-white font-bold text-[11px] rounded-lg shadow-sm hover:bg-indigo-700">Edit Info</button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Full Name</label>
+                        <input type="text" id="detail-input-name" disabled class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 disabled:bg-slate-100 font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Gender</label>
+                        <select id="detail-input-gender" disabled class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 disabled:bg-slate-100">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Date of Birth</label>
+                        <input type="date" id="detail-input-dob" disabled class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 disabled:bg-slate-100">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">K-REAP PRN Number</label>
+                        <input type="text" id="detail-input-kreap" disabled class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 disabled:bg-slate-100 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Application Number</label>
+                        <input type="text" id="detail-input-appno" disabled class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 disabled:bg-slate-100 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Phone Number</label>
+                        <input type="tel" id="detail-input-phone" disabled class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 disabled:bg-slate-100">
+                    </div>
+                </div>
+
+                <div id="save-edit-actions" class="hidden text-right pt-2 border-t border-slate-200">
+                    <button type="button" onclick="cancelEditMode()" class="px-3 py-1.5 text-slate-600 text-xs font-bold mr-2">Cancel</button>
+                    <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-md">Save Changes</button>
+                </div>
+            </form>
+
+            <!-- Attendance Controls & Breakdown -->
+            <div class="space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide">Semester Attendance Breakdown</h4>
+                        <p class="text-[10px] text-slate-500">Filter attendance metrics by specific semester</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-bold text-slate-500">Select Semester:</label>
+                        <select id="detail-semester-select" onchange="fetchStudentDetailWithSem()" class="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none">
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                            <option value="5" selected>Semester 5</option>
+                            <option value="6">Semester 6</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Stats Cards Row -->
+                <div class="grid grid-cols-4 gap-3 text-center">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="block text-[10px] font-bold text-slate-400 uppercase">Total Classes</span>
+                        <span id="detail-total-classes" class="text-base font-black text-slate-800">0</span>
+                    </div>
+                    <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                        <span class="block text-[10px] font-bold text-emerald-600 uppercase">Attended</span>
+                        <span id="detail-present-classes" class="text-base font-black text-emerald-700">0</span>
+                    </div>
+                    <div class="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                        <span class="block text-[10px] font-bold text-rose-600 uppercase">Absent</span>
+                        <span id="detail-absent-classes" class="text-base font-black text-rose-700">0</span>
+                    </div>
+                    <div class="p-3 bg-indigo-50 rounded-xl border border-indigo-200">
+                        <span class="block text-[10px] font-bold text-indigo-600 uppercase">Attendance %</span>
+                        <span id="detail-perc" class="text-base font-black text-indigo-700">0%</span>
+                    </div>
+                </div>
+
+                <!-- Subject-Wise Matrix -->
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead class="bg-slate-50 text-slate-700 font-mono uppercase font-bold border-b border-slate-200">
+                        <tr>
+                            <th class="py-2.5 px-4">Subject Code</th>
+                            <th class="py-2.5 px-4">Subject Name</th>
+                            <th class="py-2.5 px-4 text-center text-slate-900">Classes Attended</th>
+                            <th class="py-2.5 px-4 text-right">Attendance %</th>
+                        </tr>
+                        </thead>
+                        <tbody id="detail-subject-table-body" class="divide-y divide-slate-100 font-medium text-slate-900">
+                        <tr>
+                            <td colspan="4" class="py-4 text-center text-slate-400 italic">Loading subject breakdown...</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -849,7 +955,6 @@
         closeIcon?.classList.add('hidden');
     }
 
-    // Automatically close sidebar menu whenever an item/tab inside it is clicked
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.admin-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {

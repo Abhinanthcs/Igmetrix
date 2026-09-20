@@ -33,6 +33,9 @@ object Users : Table("users") {
     val batch = varchar("batch", 20)
     val phoneNumber = varchar("phone_number", 20)
     val role = varchar("role", 20)
+    val gender = varchar("gender", 20).nullable()
+    val kreapPrn = varchar("kreap_prn", 50).nullable()
+    val applicationNumber = varchar("application_number", 50).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }

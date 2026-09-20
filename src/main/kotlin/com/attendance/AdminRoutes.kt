@@ -25,7 +25,47 @@ data class CreateStudentRequest(
     val name: String,
     val batch: String,
     val dateOfBirth: String,
-    val phoneNumber: String
+    val phoneNumber: String,
+    val gender: String,
+    val kreapPrn: String,
+    val applicationNumber: String
+)
+@Serializable
+data class UpdateStudentRequest(
+    val registerNumber: String,
+    val name: String,
+    val batch: String,
+    val dateOfBirth: String,
+    val phoneNumber: String,
+    val gender: String,
+    val kreapPrn: String,
+    val applicationNumber: String
+)
+@Serializable
+data class StudentDetailResponse(
+    val registerNumber: String,
+    val name: String,
+    val department: String,
+    val batch: String,
+    val dateOfBirth: String,
+    val phoneNumber: String,
+    val gender: String,
+    val kreapPrn: String,
+    val applicationNumber: String,
+    val totalClasses: Long,
+    val presentCount: Long,
+    val absentCount: Long,
+    val attendancePercentage: Double,
+    val subjectBreakdown: List<StudentSubjectAttendanceDTO>
+)
+
+@Serializable
+data class StudentSubjectAttendanceDTO(
+    val subjectCode: String,
+    val subjectName: String,
+    val totalClasses: Long,
+    val attendedClasses: Long,
+    val percentage: Double
 )
 
 @Serializable
@@ -200,25 +240,54 @@ fun Application.configureAdminRoutes() {
                     val principal = call.principal<JWTPrincipal>()
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
 
+                    val batchParam = call.request.queryParameters["batch"]
+                    val semesterParam = call.request.queryParameters["semester"]?.toIntOrNull()
+
                     val studentsList = transaction {
-                        Users.selectAll().where { (Users.department eq department) and (Users.role eq "student") }
-                            .map { row ->
-                                val regNum = row[Users.registerNumber]
+                        var query = Users.selectAll().where {
+                            (Users.department eq department) and (Users.role eq "student")
+                        }
 
-                                val total = AttendanceRecords.selectAll().where { AttendanceRecords.registerNumber eq regNum }.count()
-                                val present = AttendanceRecords.selectAll()
-                                    .where { (AttendanceRecords.registerNumber eq regNum) and (AttendanceRecords.status eq "P") }
-                                    .count()
-                                val percentage = if (total > 0) ((present.toDouble() / total) * 100) else 0.0
+                        if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
+                            query = query.andWhere { Users.batch eq batchParam }
+                        }
 
-                                StudentResponse(
-                                    registerNumber = regNum,
-                                    name = row[Users.name],
-                                    department = row[Users.department],
-                                    batch = row[Users.batch] ?: "N/A",
-                                    attendancePercentage = Math.round(percentage * 10.0) / 10.0
-                                )
+                        val studentRows = query.toList()
+
+                        studentRows.map { row ->
+                            val regNum = row[Users.registerNumber]
+                            val studentBatch = row[Users.batch] ?: ""
+
+                            // Determine relevant subjects for the specified batch & semester
+                            val targetSubjectCodes = if (semesterParam != null && studentBatch.isNotBlank()) {
+                                BatchSubjects.select(BatchSubjects.subjectCode)
+                                    .where { (BatchSubjects.batch eq studentBatch) and (BatchSubjects.semester eq semesterParam) }
+                                    .map { it[BatchSubjects.subjectCode] }
+                            } else {
+                                emptyList()
                             }
+
+                            // Calculate attendance percentage
+                            var recordsQuery = AttendanceRecords.selectAll()
+                                .where { AttendanceRecords.registerNumber eq regNum }
+
+                            if (targetSubjectCodes.isNotEmpty()) {
+                                recordsQuery = recordsQuery.andWhere { AttendanceRecords.subjectCode inList targetSubjectCodes }
+                            }
+
+                            val total = recordsQuery.count()
+                            val present = recordsQuery.andWhere { AttendanceRecords.status eq "P" }.count()
+
+                            val percentage = if (total > 0) ((present.toDouble() / total) * 100) else 0.0
+
+                            StudentResponse(
+                                registerNumber = regNum,
+                                name = row[Users.name],
+                                department = row[Users.department],
+                                batch = studentBatch.ifBlank { "N/A" },
+                                attendancePercentage = Math.round(percentage * 10.0) / 10.0
+                            )
+                        }
                     }
                     call.respond(studentsList)
                 }
@@ -243,16 +312,119 @@ fun Application.configureAdminRoutes() {
                                 it[Users.department] = department
                                 it[batch] = req.batch
                                 it[dateOfBirth] = parsedDob
-                                it[phoneNumber] = req.phoneNumber
+                                it[phoneNumber] = req.phoneNumber?.trim() ?: "N/A"
+                                it[gender] = req.gender?.trim() ?: "N/A"
+                                it[kreapPrn] = req.kreapPrn?.trim() ?: "N/A"
+                                it[applicationNumber] = req.applicationNumber?.trim() ?: "N/A"
                             }
                         }
                         call.respond(HttpStatusCode.Created, ApiResponse("Student registered successfully."))
-                    } catch (_: ExposedSQLException) {
-                        call.respond(HttpStatusCode.Conflict, ApiResponse("Student with this register number already exists."))
-                    } catch (_: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, ApiResponse("Invalid date format or student details."))
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse("Failed to register student: ${e.message}"))
                     }
                 }
+                put("/students/update") {
+                    val req = call.receive<UpdateStudentRequest>()
+                    try {
+                        val parsedDob = LocalDate.parse(req.dateOfBirth.trim())
+                        transaction {
+                            Users.update({ Users.registerNumber eq req.registerNumber }) {
+                                it[name] = req.name.trim()
+                                it[batch] = req.batch
+                                it[dateOfBirth] = parsedDob
+                                it[phoneNumber] = req.phoneNumber?.trim() ?: "N/A"
+                                it[gender] = req.gender?.trim() ?: "N/A"
+                                it[kreapPrn] = req.kreapPrn?.trim() ?: "N/A"
+                                it[applicationNumber] = req.applicationNumber?.trim() ?: "N/A"
+                            }
+                        }
+                        call.respond(HttpStatusCode.OK, ApiResponse("Student updated successfully."))
+                    } catch (e: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, ApiResponse("Update failed: ${e.message}"))
+                    }
+                }
+
+                // --- GET DETAILED STUDENT PROFILE & ATTENDANCE BY SEMESTER ---
+                get("/students/{regNumber}/details") {
+                    val regNum = call.parameters["regNumber"]?.uppercase()
+                        ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse("Reg Number required"))
+                    val semesterParam = call.request.queryParameters["semester"]?.toIntOrNull()
+
+                    val response = transaction {
+                        val userRow = Users.selectAll().where { Users.registerNumber eq regNum }.firstOrNull()
+                            ?: return@transaction null
+
+                        val userBatch = userRow[Users.batch] ?: ""
+
+                        // Fetch mapped subjects for the selected semester
+                        val activeSubjects = if (semesterParam != null) {
+                            BatchSubjects.innerJoin(Subjects, { BatchSubjects.subjectCode }, { Subjects.code })
+                                .select(Subjects.code, Subjects.name)
+                                .where { (BatchSubjects.batch eq userBatch) and (BatchSubjects.semester eq semesterParam) }
+                                .map { it[Subjects.code] to it[Subjects.name] }
+                        } else {
+                            AttendanceRecords.select(AttendanceRecords.subjectCode, AttendanceRecords.subjectName)
+                                .where { AttendanceRecords.registerNumber eq regNum }
+                                .groupBy(AttendanceRecords.subjectCode, AttendanceRecords.subjectName)
+                                .map { it[AttendanceRecords.subjectCode] to it[AttendanceRecords.subjectName] }
+                        }
+
+                        val subjectBreakdownList = mutableListOf<StudentSubjectAttendanceDTO>()
+                        var totalAllClasses = 0L
+                        var totalAllPresent = 0L
+
+                        activeSubjects.forEach { (code, name) ->
+                            val totalForSubj = AttendanceRecords.selectAll()
+                                .where { (AttendanceRecords.registerNumber eq regNum) and (AttendanceRecords.subjectCode eq code) }
+                                .count()
+
+                            val presentForSubj = AttendanceRecords.selectAll()
+                                .where { (AttendanceRecords.registerNumber eq regNum) and (AttendanceRecords.subjectCode eq code) and (AttendanceRecords.status eq "P") }
+                                .count()
+
+                            val perc = if (totalForSubj > 0) Math.round((presentForSubj.toDouble() / totalForSubj) * 100.0 * 10.0) / 10.0 else 0.0
+
+                            totalAllClasses += totalForSubj
+                            totalAllPresent += presentForSubj
+
+                            subjectBreakdownList.add(
+                                StudentSubjectAttendanceDTO(
+                                    subjectCode = code,
+                                    subjectName = name,
+                                    totalClasses = totalForSubj,
+                                    attendedClasses = presentForSubj,
+                                    percentage = perc
+                                )
+                            )
+                        }
+
+                        val overallPerc = if (totalAllClasses > 0) Math.round((totalAllPresent.toDouble() / totalAllClasses) * 100.0 * 10.0) / 10.0 else 0.0
+
+                        StudentDetailResponse(
+                            registerNumber = userRow[Users.registerNumber],
+                            name = userRow[Users.name],
+                            department = userRow[Users.department],
+                            batch = userBatch,
+                            dateOfBirth = userRow[Users.dateOfBirth].toString(),
+                            phoneNumber = userRow[Users.phoneNumber] ?: "N/A",
+                            gender = userRow[Users.gender] ?: "N/A",
+                            kreapPrn = userRow[Users.kreapPrn] ?: "N/A",
+                            applicationNumber = userRow[Users.applicationNumber] ?: "N/A",
+                            totalClasses = totalAllClasses,
+                            presentCount = totalAllPresent,
+                            absentCount = totalAllClasses - totalAllPresent,
+                            attendancePercentage = overallPerc,
+                            subjectBreakdown = subjectBreakdownList
+                        )
+                    }
+
+                    if (response != null) {
+                        call.respond(HttpStatusCode.OK, response)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, ApiResponse("Student profile not found."))
+                    }
+                }
+
 
                 post("/delete-student") {
                     val req = call.receive<DeleteStudentRequest>()
