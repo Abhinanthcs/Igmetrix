@@ -16,10 +16,7 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 
 fun main() {
-    // Read PORT dynamically from Render environment, default to 8080 locally
     val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
-
-    // Bind to 0.0.0.0 so Render can route traffic to the container
     embeddedServer(Netty, port = port, host = "0.0.0.0") {
         module()
     }.start(wait = true)
