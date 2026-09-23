@@ -6,13 +6,17 @@ import org.jetbrains.exposed.sql.transactions.transaction
 
 object DatabaseFactory {
     fun init() {
-        // Reads Render environment variables, or falls back to your Ubuntu setup
-        val dbUrl = System.getenv("DATABASE_URL")
+        var dbUrl = System.getenv("DATABASE_URL")
             ?: "jdbc:postgresql://localhost:5432/attendance_db"
         val dbUser = System.getenv("DATABASE_USER")
             ?: "postgres"
         val dbPassword = System.getenv("DATABASE_PASSWORD")
             ?: "9g45ta@Xp"
+
+        // Append sslmode=disable if not already explicitly specified
+        if (!dbUrl.contains("sslmode")) {
+            dbUrl = if (dbUrl.contains("?")) "$dbUrl&sslmode=disable" else "$dbUrl?sslmode=disable"
+        }
 
         Database.connect(
             url = dbUrl,
