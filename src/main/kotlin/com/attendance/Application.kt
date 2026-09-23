@@ -14,10 +14,13 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.*
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
-import java.io.File
 
 fun main() {
-    embeddedServer(Netty, port = 8081, host = "127.0.0.1") {
+    // Read PORT dynamically from Render environment, default to 8080 locally
+    val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
+
+    // Bind to 0.0.0.0 so Render can route traffic to the container
+    embeddedServer(Netty, port = port, host = "0.0.0.0") {
         module()
     }.start(wait = true)
 }
@@ -31,7 +34,7 @@ fun Application.module() {
         json()
     }
 
-    // Initialize PostgreSQL Database Connection & Schema Check
+    // Initialize Database Connection
     DatabaseFactory.init()
 
     install(Authentication) {
@@ -56,34 +59,39 @@ fun Application.module() {
     }
 
     routing {
+        // Helper function to serve static HTML files from classpath inside JAR
+        fun serveResource(path: String): ByteArray? {
+            return object {}.javaClass.classLoader.getResourceAsStream("public/$path")?.readBytes()
+        }
+
         // 1. Direct Page Routes
         get("/") {
-            val file = File("src/main/resources/public/login.html")
-            if (file.exists()) call.respondBytes(file.readBytes(), ContentType.Text.Html)
+            val bytes = serveResource("login.html")
+            if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
             else call.respondText("login.html not found", status = HttpStatusCode.NotFound)
         }
 
         get("/login.html") {
-            val file = File("src/main/resources/public/login.html")
-            if (file.exists()) call.respondBytes(file.readBytes(), ContentType.Text.Html)
+            val bytes = serveResource("login.html")
+            if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
             else call.respondText("login.html not found", status = HttpStatusCode.NotFound)
         }
 
         get("/student.html") {
-            val file = File("src/main/resources/public/student.html")
-            if (file.exists()) call.respondBytes(file.readBytes(), ContentType.Text.Html)
+            val bytes = serveResource("student.html")
+            if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
             else call.respondText("student.html not found", status = HttpStatusCode.NotFound)
         }
 
         get("/teacher.html") {
-            val file = File("src/main/resources/public/teacher.html")
-            if (file.exists()) call.respondBytes(file.readBytes(), ContentType.Text.Html)
+            val bytes = serveResource("teacher.html")
+            if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
             else call.respondText("teacher.html not found", status = HttpStatusCode.NotFound)
         }
 
         get("/admin.html") {
-            val file = File("src/main/resources/public/admin.html")
-            if (file.exists()) call.respondBytes(file.readBytes(), ContentType.Text.Html)
+            val bytes = serveResource("admin.html")
+            if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
             else call.respondText("admin.html not found", status = HttpStatusCode.NotFound)
         }
 
@@ -96,8 +104,8 @@ fun Application.module() {
         // 3. Static Asset Wildcard Handler
         get("/{path...}") {
             val path = call.parameters.getAll("path")?.joinToString("/") ?: return@get
-            val file = File("src/main/resources/public/$path")
-            if (file.exists() && file.isFile) {
+            val bytes = serveResource(path)
+            if (bytes != null) {
                 val contentType = when {
                     path.endsWith(".css") -> ContentType.Text.CSS
                     path.endsWith(".js") -> ContentType.Application.JavaScript
@@ -108,7 +116,7 @@ fun Application.module() {
                     path.endsWith(".ico") -> ContentType.Image.XIcon
                     else -> ContentType.Application.OctetStream
                 }
-                call.respondBytes(file.readBytes(), contentType)
+                call.respondBytes(bytes, contentType)
             } else {
                 call.respondText("File not found: $path", status = HttpStatusCode.NotFound)
             }
