@@ -15,7 +15,6 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import org.jetbrains.exposed.sql.SortOrder
-import org.mindrot.jbcrypt.BCrypt
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 
 // --- DTO DEFINITIONS ---
@@ -584,8 +583,8 @@ fun Application.configureAdminRoutes() {
                             }
                         }
 
+                        // Store plain text password directly (Fallback to DOB if password not provided)
                         val plainPassword = req.password?.takeIf { it.isNotBlank() } ?: rawDob
-                        val hashedPassword = BCrypt.hashpw(plainPassword, BCrypt.gensalt())
 
                         transaction {
                             Teachers.insert {
@@ -594,7 +593,7 @@ fun Application.configureAdminRoutes() {
                                 it[Teachers.department] = department
                                 it[dateOfBirth] = parsedDob
                                 it[phoneNumber] = req.phoneNumber?.trim() ?: "N/A"
-                                it[password] = hashedPassword
+                                it[password] = plainPassword // <-- Saved directly as plain text
                             }
                         }
                         call.respond(HttpStatusCode.Created, ApiResponse("Teacher created successfully."))
