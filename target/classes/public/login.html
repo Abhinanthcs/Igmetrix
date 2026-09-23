@@ -3,35 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Attendance System</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Department Admin Console</title>
+    <title>Login - Attendance Core</title>
 
     <!-- Favicon Links -->
     <link rel="icon" type="image/svg+xml" href="/image/logo/logo.svg">
     <link rel="shortcut icon" href="/image/logo/logo.svg">
 
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
-<body class="bg-slate-100 flex items-center justify-center min-h-screen">
+<body class="bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 min-h-screen flex items-center justify-center p-4 sm:p-6 my-auto">
 
-<div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+<div class="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden p-8 space-y-6">
 
-    <!-- Role Selector Tabs -->
-    <div class="flex border-b border-slate-200 mb-6 font-semibold text-sm">
-        <button type="button" id="tab-student" data-role="student" class="flex-1 py-2 text-center text-slate-800 border-b-2 border-slate-800 font-bold transition-all">Student</button>
-        <button type="button" id="tab-teacher" data-role="teacher" class="flex-1 py-2 text-center text-slate-400 hover:text-slate-700 transition-all">Teacher</button>
-        <button type="button" id="tab-admin" data-role="admin" class="flex-1 py-2 text-center text-slate-400 hover:text-slate-700 transition-all">Admin</button>
+    <!-- Brand Header & Logo -->
+    <div class="text-center space-y-2">
+        <div class="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center p-3 mx-auto shadow-lg shadow-slate-900/10">
+            <img src="/image/logo/logo.svg" alt="Attendance Core Logo" class="w-full h-full object-contain">
+        </div>
+        <h1 class="text-xl font-black text-slate-900 tracking-tight">Attendance Core</h1>
+        <p class="text-xs text-slate-500 font-medium">Select your role to access your portal</p>
     </div>
 
-    <h2 id="login-title" class="text-2xl font-bold text-center text-slate-800">Student Login</h2>
-    <p id="login-subtitle" class="text-xs text-center text-slate-500 mb-6">Enter your credentials to access your portal</p>
+    <!-- Role Selector Tabs -->
+    <div class="flex border-b border-slate-100 font-bold text-xs text-slate-400">
+        <button type="button" id="tab-student" data-role="student" class="flex-1 py-3 text-center transition-all">Student</button>
+        <button type="button" id="tab-teacher" data-role="teacher" class="flex-1 py-3 text-center transition-all">Teacher</button>
+        <button type="button" id="tab-admin" data-role="admin" class="flex-1 py-3 text-center transition-all">Admin</button>
+    </div>
+
+    <!-- Title Section -->
+    <div class="text-center space-y-1">
+        <h2 id="login-title" class="text-lg font-bold text-slate-800">Student Login</h2>
+        <p id="login-subtitle" class="text-xs text-slate-500">Enter your credentials to access your portal</p>
+    </div>
 
     <form id="loginForm" class="space-y-4">
         <!-- Hidden Role Input for JS auth handling -->
@@ -39,24 +45,60 @@
 
         <!-- Dynamic Input 1: Register Number / Teacher ID / Username -->
         <div>
-            <label id="label-field1" class="block text-xs font-bold text-slate-600 uppercase mb-1">Register Number</label>
-            <input type="text" id="field1" required autocomplete="username" placeholder="Enter register number" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-slate-800">
+            <label id="label-field1" class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Register Number</label>
+            <input type="text" id="field1" required autocomplete="username" placeholder="Enter register number"
+                   class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:bg-white focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900 transition-all">
         </div>
 
         <!-- Dynamic Input 2: Date of Birth / Password -->
         <div>
-            <label id="label-field2" class="block text-xs font-bold text-slate-600 uppercase mb-1">Date of Birth</label>
-            <input type="date" id="field2" required autocomplete="current-password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-slate-800">
+            <label id="label-field2" class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Date of Birth</label>
+            <div class="relative">
+                <input type="date" id="field2" required autocomplete="current-password"
+                       class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900 transition-all">
+
+                <!-- Password Toggle Button (Active when type="password") -->
+                <button type="button" id="toggle-password-btn" onclick="togglePasswordVisibility()" class="hidden absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1">
+                    <svg id="eye-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <svg id="eye-off-icon" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908a10.042 10.042 0 012.122-.063c4.478 0 8.268 2.943 9.542 7a9.97 9.97 0 01-1.138 2.664M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18" />
+                    </svg>
+                </button>
+            </div>
         </div>
 
         <!-- Error Banner -->
-        <div id="errorMessage" class="hidden text-xs text-red-500 font-bold text-center py-2 bg-red-50 rounded-lg"></div>
+        <div id="errorMessage" class="hidden text-xs text-red-600 font-bold text-center py-2.5 px-3 bg-red-50 border border-red-200/60 rounded-xl"></div>
 
-        <button type="submit" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg transition-all text-sm shadow-md">
-            Login
+        <button type="submit" id="submit-btn" class="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all text-xs shadow-lg shadow-slate-900/20 active:scale-[0.98] flex items-center justify-center">
+            <span>Login</span>
         </button>
     </form>
 </div>
+
+<script>
+    // Password visibility toggle handler for Teacher/Admin password inputs
+    function togglePasswordVisibility() {
+        const field2 = document.getElementById('field2');
+        const eyeIcon = document.getElementById('eye-icon');
+        const eyeOffIcon = document.getElementById('eye-off-icon');
+        if (!field2) return;
+
+        if (field2.type === 'password') {
+            field2.type = 'text';
+            eyeIcon?.classList.add('hidden');
+            eyeOffIcon?.classList.remove('hidden');
+        } else if (field2.type === 'text') {
+            field2.type = 'password';
+            eyeIcon?.classList.remove('hidden');
+            eyeOffIcon?.classList.add('hidden');
+        }
+    }
+</script>
 
 <script src="/js/auth.js"></script>
 </body>
