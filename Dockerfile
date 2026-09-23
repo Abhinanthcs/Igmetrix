@@ -1,27 +1,23 @@
-# Stage 1: Build using Maven
+# Build Stage
 FROM maven:3.9.6-eclipse-temurin-17 AS builder
 WORKDIR /app
 
-# Copy pom.xml and wrapper scripts first to cache dependencies
-COPY pom.xml ./
-COPY .mvn ./.mvn
-COPY mvnw ./
-RUN ./mvnw dependency:go-offline -B || true
-
-# Copy source code and resources
+# Copy pom.xml and source code directly
+COPY pom.xml .
 COPY src ./src
 
-# Build JAR package
-RUN ./mvnw clean package -DskipTests
+# Package application (skipping tests for fast build)
+RUN mvn clean package -DskipTests
 
-# Stage 2: Minimal Runtime
-FROM eclipse-temurin:17-jre-alpine
+# Run Stage
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 
-# Copy compiled jar from build stage
+# Copy built JAR from builder stage
 COPY --from=builder /app/target/*.jar app.jar
 
-# Render dynamic port exposure
-EXPOSE 8081
+# Expose Ktor web port
+EXPOSE 8080
 
+# Run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]
