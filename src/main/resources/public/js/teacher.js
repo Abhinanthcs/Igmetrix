@@ -208,6 +208,13 @@ async function loadStudentRoster(batch, semester, subjectCode) {
         return;
     }
 
+    // --- SORT STUDENTS BY REGISTER NUMBER (ASCENDING) ---
+    students.sort((a, b) => {
+        const regA = (a.registerNumber || '').toString().toUpperCase();
+        const regB = (b.registerNumber || '').toString().toUpperCase();
+        return regA.localeCompare(regB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
     students.forEach((student, index) => {
         const row = document.createElement('tr');
         row.className = "hover:bg-slate-50 transition-colors";
