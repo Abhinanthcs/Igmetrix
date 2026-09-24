@@ -245,8 +245,27 @@ async function loadStudentRoster(batch, semester, subjectCode) {
 // Submit bulk attendance
 async function submitBulkAttendance(e) {
     e.preventDefault();
+
+    const submitBtn = e.target.querySelector('button[type="submit"]') || e.target.querySelector('button');
     const feedback = document.getElementById('feedbackMessage');
+
     if (feedback) feedback.className = "hidden";
+
+    // 1. Save original button state & show loading animation
+    const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Submit All Attendance';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+        submitBtn.innerHTML = `
+            <span class="inline-flex items-center gap-2">
+                <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Submitting...</span>
+            </span>
+        `;
+    }
 
     const selectedStudents = [];
     const radioGroups = document.querySelectorAll('#studentRosterBody input[type="radio"]:checked');
@@ -294,6 +313,13 @@ async function submitBulkAttendance(e) {
         if (feedback) {
             feedback.className = "p-3 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 border border-rose-200 block";
             feedback.innerText = "Error connecting to backend server.";
+        }
+    } finally {
+        // 2. Restore original button state
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+            submitBtn.innerHTML = originalBtnText;
         }
     }
 }
