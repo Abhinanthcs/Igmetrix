@@ -1318,6 +1318,14 @@ function renderPivotAttendanceTable(logs) {
         return;
     }
 
+    // Map subject codes to subject names using the in-memory cache
+    const subjectNameMap = new Map();
+    (window.assignedSubjectsCache || assignedSubjectsCache || []).forEach(item => {
+        if (item.subjectCode && item.subjectName) {
+            subjectNameMap.set(item.subjectCode, item.subjectName);
+        }
+    });
+
     const studentsMap = new Map();
     const sessionsMap = new Map();
 
@@ -1327,7 +1335,9 @@ function renderPivotAttendanceTable(logs) {
         const date = log.date || 'N/A';
         const hour = log.hour ?? 1;
         const subjCode = log.subjectCode || 'SUBJ';
-        const rawSubjName = log.subjectName || subjCode;
+
+        // Lookup subject name from cache, fallback to DTO subjectName, then code
+        const rawSubjName = subjectNameMap.get(subjCode) || log.subjectName || subjCode;
 
         // Truncate subject name to first 12 characters for clean header fit
         const shortSubjName = rawSubjName.length > 12 ? rawSubjName.substring(0, 10) + '..' : rawSubjName;
@@ -1335,7 +1345,7 @@ function renderPivotAttendanceTable(logs) {
         const sessionKey = `${date}_H${hour}_${subjCode}`;
 
         // Header format: (H1/CODE) -> Short Subject Name -> Date
-        const headerLabel = `(H${hour}/${escapeHtml(subjCode)})<br/><span class="text-[11px] font-semibold text-slate-700 block my-0.5 truncate max-w-[120px]" title="${escapeHtml(rawSubjName)}">${escapeHtml(shortSubjName)}</span><span class="text-[10px] font-normal text-slate-400 block">${date}</span>`;
+        const headerLabel = `(H${hour}/${escapeHtml(subjCode)})<br/><span class="text-[11px] font-semibold text-indigo-600 block my-0.5 truncate max-w-[120px]" title="${escapeHtml(rawSubjName)}">${escapeHtml(shortSubjName)}</span><span class="text-[10px] font-normal text-slate-400 block">${date}</span>`;
 
         if (!studentsMap.has(reg)) {
             studentsMap.set(reg, { reg, name, attendance: {} });
