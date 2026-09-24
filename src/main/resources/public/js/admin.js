@@ -20,6 +20,22 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+// STRATEGY 1: Loading state helper for dropdowns
+function setDropdownLoading(selectEl, isLoading, loadingText = 'Loading options...') {
+    if (!selectEl) return;
+    if (isLoading) {
+        selectEl.dataset.originalContent = selectEl.innerHTML;
+        selectEl.disabled = true;
+        selectEl.innerHTML = `<option value="" disabled selected>⏳ ${loadingText}</option>`;
+    } else {
+        selectEl.disabled = false;
+        if (selectEl.dataset.originalContent) {
+            selectEl.innerHTML = selectEl.dataset.originalContent;
+            delete selectEl.dataset.originalContent;
+        }
+    }
+}
+
 // Loading state helper for form submit buttons
 function setButtonLoading(btn, isLoading, loadingText = 'Processing...') {
     if (!btn) return;
@@ -228,6 +244,7 @@ function requestConfirmation({ title, message, onConfirm }) {
     }
 }
 
+// STRATEGY 2: Pre-fetch & Memory Cache Initializer
 async function loadDashboardData() {
     await Promise.all([
         fetchStudents(),
@@ -774,6 +791,8 @@ async function fetchMasterElectivePool() {
         return;
     }
 
+    tbody.innerHTML = `<tr><td colspan="100%" class="py-6 text-center text-slate-400 font-mono font-bold animate-pulse">Loading elective mapping choices...</td></tr>`;
+
     try {
         const currentGroup = globalGroupsCache.find(g => g.groupCode === groupCode);
         const groupSubjects = currentGroup ? currentGroup.subjects : [];
@@ -855,9 +874,12 @@ async function toggleStudentElectiveChoice(regNo, batch, semester, groupCode, su
     }
 }
 
+// STRATEGY 1 & 2 COMBINED: Fast Memory Lookup + Dropdown Loading Indicators
 async function populateSubjectFilter() {
     const subjectSelect = document.getElementById('log-filter-subject');
     if (!subjectSelect) return;
+
+    setDropdownLoading(subjectSelect, true, 'Updating subject filter...');
 
     const selectedBatch = document.getElementById('log-filter-batch')?.value || 'ALL';
     const selectedSemester = document.getElementById('log-filter-semester')?.value || 'ALL';
@@ -866,6 +888,7 @@ async function populateSubjectFilter() {
     try {
         let subjects = [];
 
+        // Strategy 2: Fast local cache filter from in-memory cache
         if (selectedBatch !== 'ALL' || selectedSemester !== 'ALL') {
             const cache = window.assignedSubjectsCache || [];
             const filteredMappings = cache.filter(item => {
@@ -882,6 +905,7 @@ async function populateSubjectFilter() {
             }
         }
 
+        // Fallback to catalog API if cache yields empty results
         if (subjects.length === 0) {
             const catalog = await apiFetch('/api/admin/subjects', 'GET');
             subjects = catalog || [];
@@ -905,6 +929,9 @@ async function populateSubjectFilter() {
         }
     } catch (err) {
         console.error('Failed to populate subject filter:', err);
+        subjectSelect.innerHTML = '<option value="ALL">All Subjects</option>';
+    } finally {
+        subjectSelect.disabled = false;
     }
 }
 
@@ -1056,7 +1083,7 @@ async function viewBatchRoster(batchName) {
     if (!modal || !tbody) return;
 
     if (title) title.textContent = `Students in Batch ${batchName}`;
-    tbody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-400 italic">Loading students...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-400 italic font-mono animate-pulse">Loading students...</td></tr>`;
     modal.classList.remove('hidden');
 
     if (closeBtn) closeBtn.onclick = () => modal.classList.add('hidden');
@@ -1258,11 +1285,15 @@ async function fetchAttendanceLogs() {
     if (hourVal && hourVal !== 'ALL') queryParams.append('hour', hourVal);
     if (statusVal && statusVal !== 'ALL') queryParams.append('status', statusVal);
 
+    const tbody = document.getElementById('attendance-logs-table-body');
+    if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="100%" class="py-6 text-center text-slate-400 font-mono font-bold animate-pulse">Fetching attendance logs...</td></tr>`;
+    }
+
     try {
         const logs = await apiFetch(`/api/admin/attendance-logs?${queryParams.toString()}`, 'GET');
         window.currentAttendanceLogs = logs || [];
 
-        const tbody = document.getElementById('attendance-logs-table-body');
         if (!tbody) return;
 
         if (!logs || logs.length === 0) {
@@ -1664,6 +1695,8 @@ async function fetchWeeklyMatrix() {
         tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-slate-400 italic text-center">Select batch and semester to load full week timetable...</td></tr>`;
         return;
     }
+
+    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-slate-400 font-mono font-bold animate-pulse text-center">Loading weekly schedule matrix...</td></tr>`;
 
     const subjectNameMap = new Map();
     (window.assignedSubjectsCache || []).forEach(item => {
