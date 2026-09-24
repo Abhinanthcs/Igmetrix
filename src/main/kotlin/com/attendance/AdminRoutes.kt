@@ -189,6 +189,7 @@ data class AttendanceLogResponse(
     val registerNumber: String,
     val name: String,
     val subjectCode: String,
+    val subjectName: String,
     val hour: Int,
     val date: String,
     val status: String
@@ -1115,6 +1116,7 @@ fun Application.configureAdminRoutes() {
                                     registerNumber = row[AttendanceRecords.registerNumber],
                                     name = row.getOrNull(Users.name) ?: row[AttendanceRecords.registerNumber],
                                     subjectCode = row[AttendanceRecords.subjectCode],
+                                    subjectName = row[AttendanceRecords.subjectName] ?: row[AttendanceRecords.subjectCode], // <-- Map subjectName here
                                     hour = row[AttendanceRecords.hour],
                                     date = row[AttendanceRecords.date].toString(),
                                     status = row[AttendanceRecords.status]

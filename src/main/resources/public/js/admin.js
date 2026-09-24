@@ -1318,11 +1318,11 @@ function renderPivotAttendanceTable(logs) {
         return;
     }
 
-    // Map subject codes to subject names using the in-memory cache
-    const subjectNameMap = new Map();
+    // Map subject codes from cache as a secondary fallback
+    const subjectNameCacheMap = new Map();
     (window.assignedSubjectsCache || assignedSubjectsCache || []).forEach(item => {
         if (item.subjectCode && item.subjectName) {
-            subjectNameMap.set(item.subjectCode, item.subjectName);
+            subjectNameCacheMap.set(item.subjectCode, item.subjectName);
         }
     });
 
@@ -1336,15 +1336,17 @@ function renderPivotAttendanceTable(logs) {
         const hour = log.hour ?? 1;
         const subjCode = log.subjectCode || 'SUBJ';
 
-        // Lookup subject name from cache, fallback to DTO subjectName, then code
-        const rawSubjName = subjectNameMap.get(subjCode) || log.subjectName || subjCode;
+        // 1st Priority: Backend log.subjectName
+        // 2nd Priority: In-memory frontend cache lookup
+        // 3rd Priority: Fallback to subject code
+        const rawSubjName = log.subjectName || subjectNameCacheMap.get(subjCode) || subjCode;
 
-        // Truncate subject name to first 12 characters for clean header fit
+        // Truncate subject name for neat alignment in header
         const shortSubjName = rawSubjName.length > 12 ? rawSubjName.substring(0, 10) + '..' : rawSubjName;
 
         const sessionKey = `${date}_H${hour}_${subjCode}`;
 
-        // Header format: (H1/CODE) -> Short Subject Name -> Date
+        // Header Structure: (H1/CODE) -> Subject Name -> Date
         const headerLabel = `(H${hour}/${escapeHtml(subjCode)})<br/><span class="text-[11px] font-semibold text-indigo-600 block my-0.5 truncate max-w-[120px]" title="${escapeHtml(rawSubjName)}">${escapeHtml(shortSubjName)}</span><span class="text-[10px] font-normal text-slate-400 block">${date}</span>`;
 
         if (!studentsMap.has(reg)) {
@@ -1368,11 +1370,11 @@ function renderPivotAttendanceTable(logs) {
         };
     });
 
-    // --- SORTING: HIGHER DATE FIRST (DESCENDING), HIGHER HOUR FIRST (DESCENDING) ---
+    // --- SORTING: HIGHER DATE FIRST, HIGHER HOUR FIRST ---
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
-        const dateComp = new Date(b[1].rawDate) - new Date(a[1].rawDate); // High Date to Low Date
+        const dateComp = new Date(b[1].rawDate) - new Date(a[1].rawDate);
         if (dateComp !== 0) return dateComp;
-        return parseInt(b[1].rawHour, 10) - parseInt(a[1].rawHour, 10);  // High Hour to Low Hour
+        return parseInt(b[1].rawHour, 10) - parseInt(a[1].rawHour, 10);
     });
 
     const sortedStudents = Array.from(studentsMap.values()).sort((a, b) => a.reg.localeCompare(b.reg));
