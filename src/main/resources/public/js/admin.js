@@ -1326,10 +1326,16 @@ function renderPivotAttendanceTable(logs) {
         const name = log.name || log.studentName || 'N/A';
         const date = log.date || 'N/A';
         const hour = log.hour ?? 1;
-        const subj = log.subjectCode || 'SUBJ';
+        const subjCode = log.subjectCode || 'SUBJ';
+        const rawSubjName = log.subjectName || subjCode;
 
-        const sessionKey = `${date}_H${hour}_${subj}`;
-        const headerLabel = `(H${hour}/${subj})<br/><span class="text-[10px] font-normal text-slate-400">${date}</span>`;
+        // Truncate subject name to first 12 characters for clean header fit
+        const shortSubjName = rawSubjName.length > 12 ? rawSubjName.substring(0, 10) + '..' : rawSubjName;
+
+        const sessionKey = `${date}_H${hour}_${subjCode}`;
+
+        // Header format: (H1/CODE) -> Short Subject Name -> Date
+        const headerLabel = `(H${hour}/${escapeHtml(subjCode)})<br/><span class="text-[11px] font-semibold text-slate-700 block my-0.5 truncate max-w-[120px]" title="${escapeHtml(rawSubjName)}">${escapeHtml(shortSubjName)}</span><span class="text-[10px] font-normal text-slate-400 block">${date}</span>`;
 
         if (!studentsMap.has(reg)) {
             studentsMap.set(reg, { reg, name, attendance: {} });
@@ -1352,10 +1358,11 @@ function renderPivotAttendanceTable(logs) {
         };
     });
 
+    // --- SORTING: HIGHER DATE FIRST (DESCENDING), HIGHER HOUR FIRST (DESCENDING) ---
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
-        const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
+        const dateComp = new Date(b[1].rawDate) - new Date(a[1].rawDate); // High Date to Low Date
         if (dateComp !== 0) return dateComp;
-        return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
+        return parseInt(b[1].rawHour, 10) - parseInt(a[1].rawHour, 10);  // High Hour to Low Hour
     });
 
     const sortedStudents = Array.from(studentsMap.values()).sort((a, b) => a.reg.localeCompare(b.reg));
@@ -1365,7 +1372,7 @@ function renderPivotAttendanceTable(logs) {
             <tr class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-600 text-xs">
                 <th class="py-3 px-4 text-left">REGISTER NO</th>
                 <th class="py-3 px-4 text-left">STUDENT NAME</th>
-                ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[110px] whitespace-nowrap">${session.header}</th>`).join('')}
+                ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[120px] whitespace-nowrap align-top">${session.header}</th>`).join('')}
             </tr>
         `;
     }
