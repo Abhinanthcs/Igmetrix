@@ -969,29 +969,26 @@
     }
 
     function toggleDateFilterMode() {
-        const mode = document.getElementById('log-date-mode').value;
-        const containerSpecific = document.getElementById('container-specific-date');
-        const containerStart = document.getElementById('container-start-date');
-        const containerEnd = document.getElementById('container-end-date');
+    const mode = document.getElementById('log-date-mode').value;
+    const containerSpecific = document.getElementById('container-specific-date');
+    const containerStart = document.getElementById('container-start-date');
+    const containerEnd = document.getElementById('container-end-date');
 
-        if (mode === 'SPECIFIC') {
-            containerSpecific.classList.remove('hidden');
-            containerStart.classList.add('hidden');
-            containerEnd.classList.add('hidden');
-        } else if (mode === 'RANGE') {
-            containerSpecific.classList.add('hidden');
-            containerStart.classList.remove('hidden');
-            containerEnd.classList.remove('hidden');
-        } else {
-            containerSpecific.classList.add('hidden');
-            containerStart.classList.add('hidden');
-            containerEnd.classList.add('hidden');
-        }
+    // Reset visibility
+    containerSpecific.classList.add('hidden');
+    containerStart.classList.add('hidden');
+    containerEnd.classList.add('hidden');
 
-        if (typeof fetchAttendanceLogs === 'function') {
-            fetchAttendanceLogs();
-        }
+    if (mode === 'SPECIFIC') {
+        containerSpecific.classList.remove('hidden');
+    } else if (mode === 'RANGE') {
+        containerStart.classList.remove('hidden');
+        containerEnd.classList.remove('hidden');
     }
+
+    // Refresh logs with updated mode criteria
+    fetchAttendanceLogs();
+}
 
     function toggleGroupCodeInput() {
         const typeSelect = document.getElementById('subject-type');

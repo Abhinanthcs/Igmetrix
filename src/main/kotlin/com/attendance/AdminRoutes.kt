@@ -1031,19 +1031,15 @@ fun Application.configureAdminRoutes() {
                         val batchParam = call.request.queryParameters["batch"]
                         val semesterParam = call.request.queryParameters["semester"]?.toIntOrNull()
                         val subjectCodeParam = call.request.queryParameters["subjectCode"]
-                            ?: call.request.queryParameters["subject"] // Fallback check
                         val hourParam = call.request.queryParameters["hour"]?.toIntOrNull()
                         val statusParam = call.request.queryParameters["status"]
 
                         val logs = transaction {
+                            // Join Users to get student names, but filter ONLY AttendanceRecords by department
                             var query = AttendanceRecords
                                 .innerJoin(Users, { AttendanceRecords.registerNumber }, { Users.registerNumber })
                                 .selectAll()
-                                .where {
-                                    (AttendanceRecords.department eq adminDepartment) and
-                                            (Users.department eq adminDepartment) and
-                                            (Users.role eq "student")
-                                }
+                                .where { AttendanceRecords.department eq adminDepartment }
 
                             // 1. Single Date Filter
                             if (!dateParam.isNullOrBlank() && dateParam != "ALL") {
@@ -1088,7 +1084,7 @@ fun Application.configureAdminRoutes() {
                                 query = query.andWhere { AttendanceRecords.subjectCode.lowerCase() eq subjectCodeParam.lowercase() }
                             }
 
-                            // 6. Hour/Period Filter
+                            // 6. Hour Filter
                             if (hourParam != null) {
                                 query = query.andWhere { AttendanceRecords.hour eq hourParam }
                             }
