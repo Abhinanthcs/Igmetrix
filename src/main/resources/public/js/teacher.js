@@ -1,3 +1,21 @@
+/* js/teacher.js */
+
+// Dynamic dropdown loading state helper
+function setDropdownLoading(selectEl, isLoading, text = 'Loading options...') {
+    if (!selectEl) return;
+    if (isLoading) {
+        selectEl.dataset.originalContent = selectEl.innerHTML;
+        selectEl.disabled = true;
+        selectEl.innerHTML = `<option value="" disabled selected>⏳ ${text}</option>`;
+    } else {
+        selectEl.disabled = false;
+        if (selectEl.dataset.originalContent) {
+            selectEl.innerHTML = selectEl.dataset.originalContent;
+            delete selectEl.dataset.originalContent;
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('date').value = new Date().toISOString().split('T')[0];
     loadBatches();
@@ -33,6 +51,10 @@ function markAll(status) {
 // Fetch all available batches from admin route
 async function loadBatches() {
     const batchSelect = document.getElementById('batchSelect');
+    if (!batchSelect) return;
+
+    setDropdownLoading(batchSelect, true, 'Loading Batches...');
+
     try {
         const response = await fetch('/api/admin/batches', {
             headers: { ...getAuthHeader() }
@@ -49,13 +71,16 @@ async function loadBatches() {
         }
     } catch (e) {
         console.error("Failed to load batches", e);
+        batchSelect.innerHTML = '<option value="">Select Batch</option>';
+    } finally {
+        batchSelect.disabled = false;
     }
 }
 
 // Triggered when Batch or Semester selection changes
 async function onBatchOrSemChange() {
-    const batch = document.getElementById('batchSelect').value;
-    const sem = document.getElementById('semesterSelect').value;
+    const batch = document.getElementById('batchSelect')?.value;
+    const sem = document.getElementById('semesterSelect')?.value;
     const subjectCode = document.getElementById('subjectSelect')?.value;
 
     if (batch && sem) {
@@ -77,6 +102,10 @@ async function onBatchOrSemChange() {
 // Load subjects assigned to batch + semester
 async function loadSubjectsForBatchAndSem(batch, sem) {
     const subjectSelect = document.getElementById('subjectSelect');
+    if (!subjectSelect) return;
+
+    setDropdownLoading(subjectSelect, true, 'Loading Subjects...');
+
     try {
         const response = await fetch(`/api/admin/batches/${encodeURIComponent(batch)}/semester/${sem}/subjects`, {
             headers: { ...getAuthHeader() }
@@ -94,6 +123,9 @@ async function loadSubjectsForBatchAndSem(batch, sem) {
         }
     } catch (e) {
         console.error("Failed to load subjects", e);
+        subjectSelect.innerHTML = '<option value="">Select Subject</option>';
+    } finally {
+        subjectSelect.disabled = false;
     }
 }
 
@@ -175,6 +207,13 @@ async function onSubjectSelectChange() {
 // Load student roster (Filtered by Global Subject assignment if applicable)
 async function loadStudentRoster(batch, semester, subjectCode) {
     const tbody = document.getElementById('studentRosterBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="3" class="px-4 py-6 text-center text-slate-400 font-mono font-bold animate-pulse">Loading student roster...</td>
+        </tr>`;
+
     let students = [];
 
     const queryParams = new URLSearchParams({ batch });

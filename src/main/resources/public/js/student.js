@@ -12,6 +12,22 @@ let filterState = {
     sortOrder: 'DESC'
 };
 
+// Dynamic dropdown loading state helper
+function setDropdownLoading(selectEl, isLoading, text = 'Loading options...') {
+    if (!selectEl) return;
+    if (isLoading) {
+        selectEl.dataset.originalContent = selectEl.innerHTML;
+        selectEl.disabled = true;
+        selectEl.innerHTML = `<option value="" disabled selected>⏳ ${text}</option>`;
+    } else {
+        selectEl.disabled = false;
+        if (selectEl.dataset.originalContent) {
+            selectEl.innerHTML = selectEl.dataset.originalContent;
+            delete selectEl.dataset.originalContent;
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('jwtToken');
 
@@ -26,6 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initSemesterAndLoad(token) {
     const semSelect = document.getElementById('semesterSelect');
 
+    if (semSelect) {
+        setDropdownLoading(semSelect, true, 'Loading Semesters...');
+    }
+
     try {
         const res = await fetch('/student/semesters', { headers: { 'Authorization': `Bearer ${token}` } });
         if (res.ok) {
@@ -36,6 +56,8 @@ async function initSemesterAndLoad(token) {
         }
     } catch (e) {
         populateSemesterOptions();
+    } finally {
+        if (semSelect) semSelect.disabled = false;
     }
 
     if (semSelect) {
@@ -58,7 +80,6 @@ function populateSemesterOptions(semesters = []) {
     const select = document.getElementById('semesterSelect');
     if (!select) return;
 
-    // Responsive class stack: adjusts font-size, width, padding, and ensures options fit mobile screens
     select.className = 'w-auto max-w-[130px] sm:max-w-none bg-slate-800 text-slate-100 border border-slate-700 text-[11px] sm:text-xs font-semibold rounded-md px-2 py-1 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer truncate';
 
     select.innerHTML = '';
@@ -135,6 +156,11 @@ async function loadSummary(token, semester = 'ALL') {
 }
 
 async function loadHistory(token, semester = 'ALL') {
+    const tbody = document.getElementById('historyTableBody');
+    if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 font-mono font-bold animate-pulse">Loading attendance history...</td></tr>`;
+    }
+
     try {
         const url = `/student/history${semester && semester !== 'ALL' ? `?semester=${encodeURIComponent(semester)}` : ''}`;
         const response = await fetch(url, {
@@ -555,7 +581,6 @@ function renderSubjectBreakdown(history) {
 
         let barColor = 'bg-emerald-500';
         let badgeStyle = 'bg-emerald-100 text-emerald-800';
-        // Explicitly set green left border for >= 75%
         let borderStyle = 'border-l-4 border-l-emerald-500 border-slate-200/80';
 
         if (perc < 65) {
