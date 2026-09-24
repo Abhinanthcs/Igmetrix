@@ -132,7 +132,6 @@
                 </button>
             </div>
 
-            <!-- Search & Batch Filter Controls -->
             <!-- Search, Batch & Semester Filter Controls -->
             <div class="flex flex-col sm:flex-row gap-3 justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                 <div class="flex flex-1 gap-3 w-full">
@@ -143,7 +142,6 @@
                         <option value="ALL">All Batches</option>
                     </select>
 
-                    <!-- ADDED: Semester Filter Dropdown -->
                     <select id="student-semester-filter" class="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none font-bold text-slate-700">
                         <option value="ALL">All Semesters</option>
                         <option value="1">Semester 1</option>
@@ -678,24 +676,18 @@
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                <table id="attendance-logs-table" class="w-full text-left border-collapse text-xs">
-                    <thead class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-400">
-                    <tr>
-                        <th class="py-3 px-4">Reg Number</th>
-                        <th class="py-3 px-4">Student Name</th>
-                        <th class="py-3 px-4">Subject</th>
-                        <th class="py-3 px-4 text-center">Hour</th>
-                        <th class="py-3 px-4 text-center">Date</th>
-                        <th class="py-3 px-4 text-center">Status</th>
-                        <th class="py-3 px-4 text-right">Edit Status</th>
-                    </tr>
-                    </thead>
-                    <tbody id="attendance-logs-table-body" class="divide-y divide-slate-100 font-medium">
-                    <tr>
-                        <td colspan="7" class="py-6 text-center text-slate-400 italic">Select filters above to load attendance logs...</td>
-                    </tr>
-                    </tbody>
-                </table>
+                <div class="overflow-x-auto">
+                    <table id="attendance-logs-table" class="w-full text-left border-collapse text-xs">
+                        <thead id="attendance-logs-table-head" class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-400">
+                        <!-- Dynamic Session Matrix Headers Rendered Here -->
+                        </thead>
+                        <tbody id="attendance-logs-table-body" class="divide-y divide-slate-100 font-medium">
+                        <tr>
+                            <td colspan="100%" class="py-6 text-center text-slate-400 italic">Select filters above to load attendance logs...</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -703,7 +695,7 @@
 
 </div>
 
-<!-- ENROLL STUDENT MODAL (UPDATED WITH 3 NEW FIELDS) -->
+<!-- ENROLL STUDENT MODAL -->
 <div id="crud-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-100">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center">
@@ -969,26 +961,24 @@
     }
 
     function toggleDateFilterMode() {
-    const mode = document.getElementById('log-date-mode').value;
-    const containerSpecific = document.getElementById('container-specific-date');
-    const containerStart = document.getElementById('container-start-date');
-    const containerEnd = document.getElementById('container-end-date');
+        const mode = document.getElementById('log-date-mode').value;
+        const containerSpecific = document.getElementById('container-specific-date');
+        const containerStart = document.getElementById('container-start-date');
+        const containerEnd = document.getElementById('container-end-date');
 
-    // Reset visibility
-    containerSpecific.classList.add('hidden');
-    containerStart.classList.add('hidden');
-    containerEnd.classList.add('hidden');
+        containerSpecific.classList.add('hidden');
+        containerStart.classList.add('hidden');
+        containerEnd.classList.add('hidden');
 
-    if (mode === 'SPECIFIC') {
-        containerSpecific.classList.remove('hidden');
-    } else if (mode === 'RANGE') {
-        containerStart.classList.remove('hidden');
-        containerEnd.classList.remove('hidden');
+        if (mode === 'SPECIFIC') {
+            containerSpecific.classList.remove('hidden');
+        } else if (mode === 'RANGE') {
+            containerStart.classList.remove('hidden');
+            containerEnd.classList.remove('hidden');
+        }
+
+        fetchAttendanceLogs();
     }
-
-    // Refresh logs with updated mode criteria
-    fetchAttendanceLogs();
-}
 
     function toggleGroupCodeInput() {
         const typeSelect = document.getElementById('subject-type');
