@@ -1397,7 +1397,7 @@ function renderPivotAttendanceTable(logs) {
 
                 return `
                     <td class="py-3 px-4 text-center font-mono font-bold">
-                        <button onclick="toggleAttendanceStatus('${record.logId}', '${nextStatus}')"
+                        <button onclick="toggleAttendanceStatus('${record.logId}', '${nextStatus}', this)"
                                 class="w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center ${btnStyle}">
                             ${current}
                         </button>
@@ -1408,17 +1408,59 @@ function renderPivotAttendanceTable(logs) {
     `).join('');
 }
 
-async function toggleAttendanceStatus(id, newStatus) {
+// Optimized toggle function: Updates DOM immediately without re-rendering the full table
+async function toggleAttendanceStatus(id, newStatus, btnElement) {
+    if (!btnElement) return;
+
+    // 1. Save original state for instant rollback if API request fails
+    const originalText = btnElement.textContent.trim();
+    const originalClassName = btnElement.className;
+
+    // 2. Define new visual button styles and determine next state in the cycle (P -> A -> L -> P)
+    let nextStatusText = 'P';
+    let nextStatusForApi = 'PRESENT';
+    let btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20';
+
+    if (newStatus === 'PRESENT' || newStatus === 'P') {
+        nextStatusText = 'P';
+        nextStatusForApi = 'ABSENT';
+        btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20';
+    } else if (newStatus === 'ABSENT' || newStatus === 'A') {
+        nextStatusText = 'A';
+        nextStatusForApi = 'LATE';
+        btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 border border-rose-500/20';
+    } else if (newStatus === 'LATE' || newStatus === 'L') {
+        nextStatusText = 'L';
+        nextStatusForApi = 'PRESENT';
+        btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/20';
+    }
+
+    // 3. Optimistic DOM Update (Instant feedback to user)
+    btnElement.textContent = nextStatusText;
+    btnElement.className = `w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center ${btnStyle}`;
+    btnElement.setAttribute('onclick', `toggleAttendanceStatus('${id}', '${nextStatusForApi}', this)`);
+
+    // 4. In-Memory Cache Update
+    if (Array.isArray(window.currentAttendanceLogs)) {
+        const logItem = window.currentAttendanceLogs.find(l => String(l.id) === String(id));
+        if (logItem) {
+            logItem.status = newStatus;
+        }
+    }
+
+    // 5. Silent Background API Update
     try {
         await apiFetch(`/api/admin/attendance/${id}`, 'PUT', { id: String(id), status: newStatus });
         showAlert('Attendance status updated.');
-        await fetchAttendanceLogs();
     } catch (err) {
         try {
             await apiFetch('/api/admin/update-attendance', 'POST', { id: String(id), status: newStatus });
             showAlert('Attendance status updated.');
-            await fetchAttendanceLogs();
         } catch (fallbackErr) {
+            // Revert DOM back to original state if both requests fail
+            btnElement.textContent = originalText;
+            btnElement.className = originalClassName;
+            btnElement.setAttribute('onclick', `toggleAttendanceStatus('${id}', '${newStatus}', this)`);
             showAlert(`Failed to update status: ${fallbackErr.message}`, true);
         }
     }
