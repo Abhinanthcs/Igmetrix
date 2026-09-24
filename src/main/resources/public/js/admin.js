@@ -1173,6 +1173,7 @@ function confirmDeleteTeacher(teacherId) {
     });
 }
 
+// admin.js -> fetchAttendanceLogs()
 async function fetchAttendanceLogs() {
     const dateModeEl = document.getElementById('log-date-mode');
     const dateMode = dateModeEl ? dateModeEl.value : 'SPECIFIC';
@@ -1198,7 +1199,10 @@ async function fetchAttendanceLogs() {
 
     if (batchVal && batchVal !== 'ALL') queryParams.append('batch', batchVal);
     if (semVal && semVal !== 'ALL') queryParams.append('semester', semVal);
+
+    // FIXED: Changed parameter key from 'subject' to 'subjectCode'
     if (subjectVal && subjectVal !== 'ALL') queryParams.append('subjectCode', subjectVal);
+
     if (hourVal && hourVal !== 'ALL') queryParams.append('hour', hourVal);
     if (statusVal && statusVal !== 'ALL') queryParams.append('status', statusVal);
 

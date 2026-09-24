@@ -1031,6 +1031,7 @@ fun Application.configureAdminRoutes() {
                         val batchParam = call.request.queryParameters["batch"]
                         val semesterParam = call.request.queryParameters["semester"]?.toIntOrNull()
                         val subjectCodeParam = call.request.queryParameters["subjectCode"]
+                            ?: call.request.queryParameters["subject"] // Fallback check
                         val hourParam = call.request.queryParameters["hour"]?.toIntOrNull()
                         val statusParam = call.request.queryParameters["status"]
 
@@ -1068,7 +1069,7 @@ fun Application.configureAdminRoutes() {
                                 query = query.andWhere { Users.batch eq batchParam }
                             }
 
-                            // 4. Semester Filter (Fixed logic: works when batch is ALL or specific)
+                            // 4. Semester Filter
                             if (semesterParam != null) {
                                 val batchSubjectsQuery = BatchSubjects.select(BatchSubjects.subjectCode)
                                 val validSubjectCodes = if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
