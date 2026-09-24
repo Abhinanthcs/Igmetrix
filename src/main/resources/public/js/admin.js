@@ -1215,97 +1215,46 @@ async function fetchAttendanceLogs() {
 
 function renderPivotAttendanceTable(logs) {
     const tbody = document.getElementById('attendance-logs-table-body');
-    const thead = document.getElementById('attendance-logs-table-head');
     if (!tbody) return;
 
     if (!Array.isArray(logs) || logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="100%" class="py-4 px-6 text-center text-slate-400 italic">No attendance records found matching filters.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="py-4 px-6 text-center text-slate-400 italic">No attendance records found matching filters.</td></tr>`;
         return;
     }
 
-    const studentsMap = new Map();
-    const sessionsMap = new Map();
-
-    logs.forEach(log => {
-        const reg = log.registerNumber || log.regNumber || log.studentId || 'N/A';
+    tbody.innerHTML = logs.map(log => {
+        const reg = log.registerNumber || log.regNumber || 'N/A';
         const name = log.name || log.studentName || 'N/A';
+        const subj = log.subjectCode || 'N/A';
+        const hour = log.hour ?? 'N/A';
         const date = log.date || 'N/A';
-        const hour = log.hour ?? 1;
-        const subj = log.subjectCode || 'SUBJ';
+        const status = (log.status || 'ABSENT').toUpperCase();
 
-        const sessionKey = `${date}_H${hour}_${subj}`;
-        const headerLabel = `(H${hour}/${subj}) ${date}`;
+        const isPresent = status === 'PRESENT' || status === 'P';
+        const statusBadge = isPresent
+            ? `<span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded text-xs font-mono font-bold">P</span>`
+            : `<span class="px-2.5 py-1 bg-rose-500/10 text-rose-600 border border-rose-500/20 rounded text-xs font-mono font-bold">A</span>`;
 
-        if (!studentsMap.has(reg)) {
-            studentsMap.set(reg, { reg, name, attendance: {} });
-        }
-        if (!sessionsMap.has(sessionKey)) {
-            sessionsMap.set(sessionKey, { header: headerLabel, rawDate: date, rawHour: hour });
-        }
+        const nextStatus = isPresent ? 'ABSENT' : 'PRESENT';
 
-        const isPresent = String(log.status).toUpperCase() === 'PRESENT' || String(log.status).toUpperCase() === 'P';
-        studentsMap.get(reg).attendance[sessionKey] = {
-            logId: log.id,
-            status: isPresent ? 'P' : 'A'
-        };
-    });
-
-    const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
-        const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
-        if (dateComp !== 0) return dateComp;
-        return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
-    });
-
-    const sortedStudents = Array.from(studentsMap.values()).sort((a, b) => a.reg.localeCompare(b.reg));
-
-    if (thead) {
-        thead.innerHTML = `
-            <tr class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-500 text-xs">
-                <th class="py-3 px-4 text-left">Register No</th>
-                <th class="py-3 px-4 text-left">Student Name</th>
-                ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[100px]">${escapeHtml(session.header)}</th>`).join('')}
+        return `
+            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 text-xs">
+                <td class="py-3 px-6 font-mono font-bold text-slate-800">${escapeHtml(reg)}</td>
+                <td class="py-3 px-6 font-bold text-slate-700">${escapeHtml(name)}</td>
+                <td class="py-3 px-6 font-mono font-semibold text-slate-600">${escapeHtml(subj)}</td>
+                <td class="py-3 px-6 font-mono text-slate-600">Hour ${hour}</td>
+                <td class="py-3 px-6 font-mono text-slate-600">${escapeHtml(date)}</td>
+                <td class="py-3 px-6">${statusBadge}</td>
+                <td class="py-3 px-6 text-right">
+                    <button onclick="toggleAttendanceStatus('${log.id}', '${nextStatus}')"
+                            class="text-indigo-600 hover:text-indigo-800 font-bold transition-colors cursor-pointer">
+                        Toggle
+                    </button>
+                </td>
             </tr>
         `;
-    }
-
-    tbody.innerHTML = sortedStudents.map(student => `
-        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 text-xs font-medium">
-            <td class="py-3 px-4 font-mono font-bold text-slate-800">${escapeHtml(student.reg)}</td>
-            <td class="py-3 px-4 text-slate-700">${escapeHtml(student.name)}</td>
-            ${sortedSessions.map(([key, _]) => {
-                const record = student.attendance[key];
-                if (!record) {
-                    return `<td class="py-3 px-4 text-center font-mono text-slate-300">-</td>`;
-                }
-
-                const current = record.status;
-                let nextStatus = 'PRESENT';
-                let btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
-
-                if (current === 'P') {
-                    nextStatus = 'ABSENT';
-                    btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20';
-                } else if (current === 'A') {
-                    nextStatus = 'LATE';
-                    btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
-                } else if (current === 'L') {
-                    nextStatus = 'PRESENT';
-                    btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20';
-                }
-
-                return `
-                    <td class="py-3 px-4 text-center font-mono font-bold">
-                        <button onclick="toggleAttendanceStatus('${record.logId}', '${nextStatus}')"
-                                class="px-2.5 py-1 rounded transition-all cursor-pointer ${btnStyle}">
-                            ${current}
-                        </button>
-                    </td>
-                `;
-            }).join('')}
-        </tr>
-    `).join('');
+    }).join('');
 }
-
 async function toggleAttendanceStatus(id, newStatus) {
     try {
         await apiFetch(`/api/admin/attendance/${id}`, 'PUT', { id: String(id), status: newStatus });
