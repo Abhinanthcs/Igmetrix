@@ -1174,8 +1174,10 @@ function confirmDeleteTeacher(teacherId) {
 }
 
 async function fetchAttendanceLogs() {
-    const dateMode = document.getElementById('log-date-mode')?.value || 'ALL';
-    const dateVal = document.getElementById('log-filter-date')?.value;
+    const dateModeEl = document.getElementById('log-date-mode');
+    const dateMode = dateModeEl ? dateModeEl.value : 'SPECIFIC';
+
+    const dateVal = document.getElementById('log-filter-date')?.value || document.getElementById('filter-date')?.value;
     const startDateVal = document.getElementById('log-filter-start-date')?.value;
     const endDateVal = document.getElementById('log-filter-end-date')?.value;
 
@@ -1187,7 +1189,7 @@ async function fetchAttendanceLogs() {
 
     const queryParams = new URLSearchParams();
 
-    if (dateMode === 'SPECIFIC' && dateVal) {
+    if (dateVal && dateVal !== 'ALL') {
         queryParams.append('date', dateVal);
     } else if (dateMode === 'RANGE') {
         if (startDateVal) queryParams.append('startDate', startDateVal);

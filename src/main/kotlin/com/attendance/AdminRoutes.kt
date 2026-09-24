@@ -16,6 +16,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.exceptions.ExposedSQLException
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 
 // --- DTO DEFINITIONS ---
 @Serializable
@@ -1024,6 +1026,8 @@ fun Application.configureAdminRoutes() {
                             ?: return@get call.respond(HttpStatusCode.Unauthorized, ApiResponse("Department missing from token payload."))
 
                         val dateParam = call.request.queryParameters["date"]
+                        val startDateParam = call.request.queryParameters["startDate"]
+                        val endDateParam = call.request.queryParameters["endDate"]
                         val batchParam = call.request.queryParameters["batch"]
                         val semesterParam = call.request.queryParameters["semester"]?.toIntOrNull()
                         val subjectCodeParam = call.request.queryParameters["subjectCode"]
@@ -1040,28 +1044,55 @@ fun Application.configureAdminRoutes() {
                                             (Users.role eq "student")
                                 }
 
-                            if (!dateParam.isNullOrBlank()) {
-                                query = query.andWhere { AttendanceRecords.date eq LocalDate.parse(dateParam) }
+                            // 1. Single Date Filter
+                            if (!dateParam.isNullOrBlank() && dateParam != "ALL") {
+                                try {
+                                    query = query.andWhere { AttendanceRecords.date eq LocalDate.parse(dateParam) }
+                                } catch (_: Exception) {}
                             }
+
+                            // 2. Date Range Filter
+                            if (!startDateParam.isNullOrBlank()) {
+                                try {
+                                    query = query.andWhere { AttendanceRecords.date greaterEq LocalDate.parse(startDateParam) }
+                                } catch (_: Exception) {}
+                            }
+                            if (!endDateParam.isNullOrBlank()) {
+                                try {
+                                    query = query.andWhere { AttendanceRecords.date lessEq LocalDate.parse(endDateParam) }
+                                } catch (_: Exception) {}
+                            }
+
+                            // 3. Batch Filter
                             if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
                                 query = query.andWhere { Users.batch eq batchParam }
                             }
-                            if (semesterParam != null && !batchParam.isNullOrBlank() && batchParam != "ALL") {
-                                val validSubjectCodes = BatchSubjects
-                                    .select(BatchSubjects.subjectCode)
-                                    .where { (BatchSubjects.batch eq batchParam) and (BatchSubjects.semester eq semesterParam) }
-                                    .map { it[BatchSubjects.subjectCode] }
+
+                            // 4. Semester Filter (Fixed logic: works when batch is ALL or specific)
+                            if (semesterParam != null) {
+                                val batchSubjectsQuery = BatchSubjects.select(BatchSubjects.subjectCode)
+                                val validSubjectCodes = if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
+                                    batchSubjectsQuery.where { (BatchSubjects.batch eq batchParam) and (BatchSubjects.semester eq semesterParam) }
+                                } else {
+                                    batchSubjectsQuery.where { BatchSubjects.semester eq semesterParam }
+                                }.map { it[BatchSubjects.subjectCode] }
 
                                 if (validSubjectCodes.isNotEmpty()) {
                                     query = query.andWhere { AttendanceRecords.subjectCode inList validSubjectCodes }
                                 }
                             }
+
+                            // 5. Subject Filter
                             if (!subjectCodeParam.isNullOrBlank() && subjectCodeParam != "ALL") {
                                 query = query.andWhere { AttendanceRecords.subjectCode.lowerCase() eq subjectCodeParam.lowercase() }
                             }
+
+                            // 6. Hour/Period Filter
                             if (hourParam != null) {
                                 query = query.andWhere { AttendanceRecords.hour eq hourParam }
                             }
+
+                            // 7. Status Filter
                             if (!statusParam.isNullOrBlank() && statusParam != "ALL") {
                                 query = query.andWhere { AttendanceRecords.status eq statusParam }
                             }
