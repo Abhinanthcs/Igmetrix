@@ -215,7 +215,6 @@ async function loadDashboardData() {
 }
 
 function initFormListeners() {
-    // Enroll New Student with 3 new fields
     document.getElementById('create-student-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = {
@@ -345,7 +344,6 @@ async function fetchStudentDetailWithSem() {
     try {
         const student = await apiFetch(`/api/admin/students/${encodeURIComponent(activeDetailRegNum)}/details?semester=${selectedSem}`, 'GET');
 
-        // Personal Info Inputs
         document.getElementById('detail-student-name').textContent = student.name;
         document.getElementById('detail-reg-sub').textContent = `${student.registerNumber} • ${student.department} (${student.batch})`;
 
@@ -356,13 +354,11 @@ async function fetchStudentDetailWithSem() {
         document.getElementById('detail-input-appno').value = student.applicationNumber;
         document.getElementById('detail-input-phone').value = student.phoneNumber;
 
-        // Stats Row
         document.getElementById('detail-total-classes').textContent = student.totalClasses;
         document.getElementById('detail-present-classes').textContent = student.presentCount;
         document.getElementById('detail-absent-classes').textContent = student.absentCount;
         document.getElementById('detail-perc').textContent = `${student.attendancePercentage}%`;
 
-        // Subject Breakdown Table
         const tbody = document.getElementById('detail-subject-table-body');
         if (tbody) {
             if (!student.subjectBreakdown || student.subjectBreakdown.length === 0) {
@@ -372,10 +368,7 @@ async function fetchStudentDetailWithSem() {
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="py-2.5 px-4 font-mono font-bold text-slate-800">${escapeHtml(sub.subjectCode)}</td>
                         <td class="py-2.5 px-4 font-medium text-slate-800">${escapeHtml(sub.subjectName)}</td>
-
-                        <!-- UPDATED: Changed text to bold text-slate-900 (Black) -->
                         <td class="py-2.5 px-4 text-center font-mono font-bold text-slate-900">${sub.attendedClasses} / ${sub.totalClasses}</td>
-
                         <td class="py-2.5 px-4 text-right font-mono font-bold ${sub.percentage >= 75 ? 'text-emerald-600' : 'text-rose-600'}">${sub.percentage}%</td>
                     </tr>
                 `).join('');
@@ -386,7 +379,6 @@ async function fetchStudentDetailWithSem() {
     }
 }
 
-// Edit Toggle Operations
 function toggleEditMode() {
     const inputs = ['detail-input-name', 'detail-input-gender', 'detail-input-dob', 'detail-input-kreap', 'detail-input-appno', 'detail-input-phone'];
     inputs.forEach(id => {
@@ -1173,7 +1165,7 @@ function confirmDeleteTeacher(teacherId) {
     });
 }
 
-// admin.js -> fetchAttendanceLogs()
+// --- ATTENDANCE LOGS & PIVOT MATRIX ---
 async function fetchAttendanceLogs() {
     const dateModeEl = document.getElementById('log-date-mode');
     const dateMode = dateModeEl ? dateModeEl.value : 'ALL';
@@ -1190,7 +1182,6 @@ async function fetchAttendanceLogs() {
 
     const queryParams = new URLSearchParams();
 
-    // Date filtering based on active UI mode
     if (dateMode === 'SPECIFIC' && dateVal) {
         queryParams.append('date', dateVal);
     } else if (dateMode === 'RANGE') {
@@ -1224,6 +1215,7 @@ async function fetchAttendanceLogs() {
 
 function renderPivotAttendanceTable(logs) {
     const tbody = document.getElementById('attendance-logs-table-body');
+    const thead = document.getElementById('attendance-logs-table-head');
     if (!tbody) return;
 
     if (!Array.isArray(logs) || logs.length === 0) {
@@ -1231,32 +1223,32 @@ function renderPivotAttendanceTable(logs) {
         return;
     }
 
-    // Construct table rows securely mapping backend AttendanceLogResponse fields
-    tbody.innerHTML = logs.map(log => {
-        const regNo = log.registerNumber || log.regNumber || 'N/A';
+    const studentsMap = new Map();
+    const sessionsMap = new Map();
+
+    logs.forEach(log => {
+        const reg = log.registerNumber || log.regNumber || log.studentId || 'N/A';
         const name = log.name || log.studentName || 'N/A';
-        const subject = log.subjectCode || log.subject || 'N/A';
-        const hour = log.hour ?? 'N/A';
         const date = log.date || 'N/A';
-        const status = log.status || 'N/A';
+        const hour = log.hour ?? 1;
+        const subj = log.subjectCode || 'SUBJ';
 
-        const statusBadge = status.toUpperCase() === 'PRESENT'
-            ? `<span class="px-2 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Present</span>`
-            : `<span class="px-2 py-1 text-xs font-semibold rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">Absent</span>`;
+        const sessionKey = `${date}_H${hour}_${subj}`;
+        const headerLabel = `(H${hour}/${subj}) ${date}`;
 
-        return `
-            <tr class="border-b border-slate-800 hover:bg-slate-800/50 transition-colors">
-                <td class="py-3 px-4 font-mono text-sm text-slate-300">${regNo}</td>
-                <td class="py-3 px-4 text-sm font-medium text-slate-200">${name}</td>
-                <td class="py-3 px-4 text-sm text-slate-400">${subject}</td>
-                <td class="py-3 px-4 text-sm text-slate-400">${hour}</td>
-                <td class="py-3 px-4 text-sm text-slate-400">${date}</td>
-                <td class="py-3 px-4 text-sm">${statusBadge}</td>
-                <td class="py-3 px-4 text-sm text-slate-400">-</td>
-            </tr>
-        `;
-    }).join('');
-}
+        if (!studentsMap.has(reg)) {
+            studentsMap.set(reg, { reg, name, attendance: {} });
+        }
+        if (!sessionsMap.has(sessionKey)) {
+            sessionsMap.set(sessionKey, { header: headerLabel, rawDate: date, rawHour: hour });
+        }
+
+        const isPresent = String(log.status).toUpperCase() === 'PRESENT' || String(log.status).toUpperCase() === 'P';
+        studentsMap.get(reg).attendance[sessionKey] = {
+            logId: log.id,
+            status: isPresent ? 'P' : 'A'
+        };
+    });
 
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
         const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
@@ -1266,40 +1258,42 @@ function renderPivotAttendanceTable(logs) {
 
     const sortedStudents = Array.from(studentsMap.values()).sort((a, b) => a.reg.localeCompare(b.reg));
 
-    thead.innerHTML = `
-        <tr class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-500 text-xs">
-            <th class="py-3 px-4 text-left">Register No</th>
-            <th class="py-3 px-4 text-left">Student Name</th>
-            ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[100px]">${session.header}</th>`).join('')}
-        </tr>
-    `;
+    if (thead) {
+        thead.innerHTML = `
+            <tr class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-500 text-xs">
+                <th class="py-3 px-4 text-left">Register No</th>
+                <th class="py-3 px-4 text-left">Student Name</th>
+                ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[100px]">${escapeHtml(session.header)}</th>`).join('')}
+            </tr>
+        `;
+    }
 
     tbody.innerHTML = sortedStudents.map(student => `
         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 text-xs font-medium">
             <td class="py-3 px-4 font-mono font-bold text-slate-800">${escapeHtml(student.reg)}</td>
             <td class="py-3 px-4 text-slate-700">${escapeHtml(student.name)}</td>
             ${sortedSessions.map(([key, _]) => {
-        const record = student.attendance[key];
-        if (!record) {
-            return `<td class="py-3 px-4 text-center font-mono text-slate-300">-</td>`;
-        }
+                const record = student.attendance[key];
+                if (!record) {
+                    return `<td class="py-3 px-4 text-center font-mono text-slate-300">-</td>`;
+                }
 
-        const current = record.status;
-        let nextStatus = 'PRESENT';
-        let btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
+                const current = record.status;
+                let nextStatus = 'PRESENT';
+                let btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
 
-        if (current === 'P') {
-            nextStatus = 'ABSENT';
-            btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20';
-        } else if (current === 'A') {
-            nextStatus = 'LATE';
-            btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
-        } else if (current === 'L') {
-            nextStatus = 'PRESENT';
-            btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20';
-        }
+                if (current === 'P') {
+                    nextStatus = 'ABSENT';
+                    btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20';
+                } else if (current === 'A') {
+                    nextStatus = 'LATE';
+                    btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
+                } else if (current === 'L') {
+                    nextStatus = 'PRESENT';
+                    btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20';
+                }
 
-        return `
+                return `
                     <td class="py-3 px-4 text-center font-mono font-bold">
                         <button onclick="toggleAttendanceStatus('${record.logId}', '${nextStatus}')"
                                 class="px-2.5 py-1 rounded transition-all cursor-pointer ${btnStyle}">
@@ -1307,7 +1301,7 @@ function renderPivotAttendanceTable(logs) {
                         </button>
                     </td>
                 `;
-    }).join('')}
+            }).join('')}
         </tr>
     `).join('');
 }
@@ -1388,6 +1382,7 @@ function exportAdminLogsCSV() {
     document.body.removeChild(link);
 }
 
+// --- TIMETABLE MODULE ---
 function getMappedSubjectsForSelectedBatchAndSem() {
     const batchSelect = document.getElementById("tt-batch-select") || document.getElementById("batchSelect");
     const semesterSelect = document.getElementById("tt-semester-select") || document.getElementById("semesterSelect");
@@ -1628,14 +1623,14 @@ async function fetchWeeklyMatrix() {
                 <tr class="hover:bg-slate-50 transition-colors">
                     <td class="py-3 px-4 font-sans font-bold text-slate-700 text-left bg-slate-50/50 border-r border-slate-200">${day}</td>
                     ${[1, 2, 3, 4, 5].map(hour => {
-                const subjectDisplay = slotMap[hour] || '-';
-                const isEmpty = subjectDisplay === '-';
-                return `
+                        const subjectDisplay = slotMap[hour] || '-';
+                        const isEmpty = subjectDisplay === '-';
+                        return `
                             <td class="py-3 px-3 border-r border-slate-200 ${isEmpty ? 'text-slate-300 font-sans' : 'font-bold text-indigo-600 bg-indigo-50/30'}">
                                 ${escapeHtml(subjectDisplay)}
                             </td>
                         `;
-            }).join('')}
+                    }).join('')}
                 </tr>
             `;
         });
@@ -1681,6 +1676,7 @@ function populateBatchDropdowns(batches) {
     });
 }
 
+// --- WINDOW GLOBAL BINDINGS ---
 window.fetchWeeklyMatrix = fetchWeeklyMatrix;
 window.initTimetable = initTimetable;
 window.fetchTimetable = fetchTimetable;
@@ -1696,6 +1692,7 @@ window.closeStudentDetailModal = closeStudentDetailModal;
 window.fetchStudentDetailWithSem = fetchStudentDetailWithSem;
 window.toggleEditMode = toggleEditMode;
 window.cancelEditMode = cancelEditMode;
+window.toggleAttendanceStatus = toggleAttendanceStatus;
 
 window.toggleTeacherPasswordVisibility = function(index) {
     const el = document.getElementById(`teacher-pwd-${index}`);
