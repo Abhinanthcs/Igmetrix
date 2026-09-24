@@ -1224,44 +1224,39 @@ async function fetchAttendanceLogs() {
 
 function renderPivotAttendanceTable(logs) {
     const tbody = document.getElementById('attendance-logs-table-body');
-    const table = tbody?.closest('table');
-    if (!tbody || !table) return;
+    if (!tbody) return;
 
-    let thead = table.querySelector('thead');
-    if (!thead) {
-        thead = document.createElement('thead');
-        table.insertBefore(thead, tbody);
+    if (!Array.isArray(logs) || logs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="100%" class="py-4 px-6 text-center text-slate-400 italic">No attendance records found matching filters.</td></tr>`;
+        return;
     }
 
-    const studentsMap = new Map();
-    const sessionsMap = new Map();
-
-    logs.forEach(log => {
-        const reg = log.regNumber || log.registerNumber || log.studentId || 'N/A';
-        const name = log.studentName || log.name || 'N/A';
+    // Construct table rows securely mapping backend AttendanceLogResponse fields
+    tbody.innerHTML = logs.map(log => {
+        const regNo = log.registerNumber || log.regNumber || 'N/A';
+        const name = log.name || log.studentName || 'N/A';
+        const subject = log.subjectCode || log.subject || 'N/A';
+        const hour = log.hour ?? 'N/A';
         const date = log.date || 'N/A';
-        const hour = log.hour || 1;
-        const subj = log.subjectCode || 'SUBJ';
+        const status = log.status || 'N/A';
 
-        const sessionKey = `${date}_H${hour}_${subj}`;
-        const sessionHeader = `(H${hour}/${subj})<br><span class="text-[10px] text-slate-400 font-mono font-normal">${date}</span>`;
+        const statusBadge = status.toUpperCase() === 'PRESENT'
+            ? `<span class="px-2 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Present</span>`
+            : `<span class="px-2 py-1 text-xs font-semibold rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">Absent</span>`;
 
-        if (!studentsMap.has(reg)) {
-            studentsMap.set(reg, { reg, name, attendance: {} });
-        }
-        if (!sessionsMap.has(sessionKey)) {
-            sessionsMap.set(sessionKey, { header: sessionHeader, rawDate: date, rawHour: hour });
-        }
-
-        let statusTag = 'A';
-        if (log.status === 'PRESENT' || log.status === 'P') statusTag = 'P';
-        else if (log.status === 'LATE' || log.status === 'L') statusTag = 'L';
-
-        studentsMap.get(reg).attendance[sessionKey] = {
-            status: statusTag,
-            logId: log.id || log.attendanceId
-        };
-    });
+        return `
+            <tr class="border-b border-slate-800 hover:bg-slate-800/50 transition-colors">
+                <td class="py-3 px-4 font-mono text-sm text-slate-300">${regNo}</td>
+                <td class="py-3 px-4 text-sm font-medium text-slate-200">${name}</td>
+                <td class="py-3 px-4 text-sm text-slate-400">${subject}</td>
+                <td class="py-3 px-4 text-sm text-slate-400">${hour}</td>
+                <td class="py-3 px-4 text-sm text-slate-400">${date}</td>
+                <td class="py-3 px-4 text-sm">${statusBadge}</td>
+                <td class="py-3 px-4 text-sm text-slate-400">-</td>
+            </tr>
+        `;
+    }).join('');
+}
 
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
         const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
