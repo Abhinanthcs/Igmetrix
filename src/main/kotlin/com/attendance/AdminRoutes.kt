@@ -1022,8 +1022,9 @@ fun Application.configureAdminRoutes() {
                 get("/attendance-logs") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
-                        val adminDepartment = principal?.payload?.getClaim("department")?.asString()
-                            ?: return@get call.respond(HttpStatusCode.Unauthorized, ApiResponse("Department missing from token payload."))
+                        val rawDeptClaim = principal?.payload?.getClaim("department")?.asString() ?: ""
+                        // Extracts "bca" from "bca@wmoig" or handles raw department string
+                        val adminDepartment = rawDeptClaim.split("@").firstOrNull()?.trim()?.lowercase() ?: "bca"
 
                         val dateParam = call.request.queryParameters["date"]
                         val startDateParam = call.request.queryParameters["startDate"]
@@ -1035,20 +1036,45 @@ fun Application.configureAdminRoutes() {
                         val statusParam = call.request.queryParameters["status"]
 
                         val logs = transaction {
-                            // Join Users to get student names, but filter ONLY AttendanceRecords by department
+                            // 1. Use LEFT JOIN so logs are retained even if user table entry is missing/mismatched
                             var query = AttendanceRecords
-                                .innerJoin(Users, { AttendanceRecords.registerNumber }, { Users.registerNumber })
+                                .leftJoin(Users, { AttendanceRecords.registerNumber }, { Users.registerNumber })
                                 .selectAll()
-                                .where { AttendanceRecords.department eq adminDepartment }
 
-                            // 1. Single Date Filter
+                            // 2. Department Filtering (Case-Insensitive)
+                            if (adminDepartment.isNotBlank()) {
+                                query = query.andWhere {
+                                    AttendanceRecords.department.lowerCase() eq adminDepartment
+                                }
+                            }
+
+                            // 3. Batch Filtering (Via Users table with Lowercase & Trim)
+                            if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
+                                query = query.andWhere {
+                                    Users.batch.trim().lowerCase() eq batchParam.trim().lowercase()
+                                }
+                            }
+
+                            // 4. Semester Filtering (Via BatchSubjects mapped subject codes)
+                            if (semesterParam != null) {
+                                val semesterSubjectCodes = BatchSubjects
+                                    .select(BatchSubjects.subjectCode)
+                                    .where { BatchSubjects.semester eq semesterParam }
+                                    .map { it[BatchSubjects.subjectCode] }
+
+                                if (semesterSubjectCodes.isNotEmpty()) {
+                                    query = query.andWhere { AttendanceRecords.subjectCode inList semesterSubjectCodes }
+                                }
+                            }
+
+                            // 5. Single Date Filter
                             if (!dateParam.isNullOrBlank() && dateParam != "ALL") {
                                 try {
                                     query = query.andWhere { AttendanceRecords.date eq LocalDate.parse(dateParam) }
                                 } catch (_: Exception) {}
                             }
 
-                            // 2. Date Range Filter
+                            // 6. Date Range Filter
                             if (!startDateParam.isNullOrBlank()) {
                                 try {
                                     query = query.andWhere { AttendanceRecords.date greaterEq LocalDate.parse(startDateParam) }
@@ -1060,38 +1086,23 @@ fun Application.configureAdminRoutes() {
                                 } catch (_: Exception) {}
                             }
 
-                            // 3. Batch Filter
-                            if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
-                                query = query.andWhere { Users.batch eq batchParam }
-                            }
-
-                            // 4. Semester Filter
-                            if (semesterParam != null) {
-                                val batchSubjectsQuery = BatchSubjects.select(BatchSubjects.subjectCode)
-                                val validSubjectCodes = if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
-                                    batchSubjectsQuery.where { (BatchSubjects.batch eq batchParam) and (BatchSubjects.semester eq semesterParam) }
-                                } else {
-                                    batchSubjectsQuery.where { BatchSubjects.semester eq semesterParam }
-                                }.map { it[BatchSubjects.subjectCode] }
-
-                                if (validSubjectCodes.isNotEmpty()) {
-                                    query = query.andWhere { AttendanceRecords.subjectCode inList validSubjectCodes }
+                            // 7. Subject Code Filter
+                            if (!subjectCodeParam.isNullOrBlank() && subjectCodeParam != "ALL") {
+                                query = query.andWhere {
+                                    AttendanceRecords.subjectCode.lowerCase() eq subjectCodeParam.lowercase()
                                 }
                             }
 
-                            // 5. Subject Filter
-                            if (!subjectCodeParam.isNullOrBlank() && subjectCodeParam != "ALL") {
-                                query = query.andWhere { AttendanceRecords.subjectCode.lowerCase() eq subjectCodeParam.lowercase() }
-                            }
-
-                            // 6. Hour Filter
+                            // 8. Hour Filter
                             if (hourParam != null) {
                                 query = query.andWhere { AttendanceRecords.hour eq hourParam }
                             }
 
-                            // 7. Status Filter
+                            // 9. Status Filter
                             if (!statusParam.isNullOrBlank() && statusParam != "ALL") {
-                                query = query.andWhere { AttendanceRecords.status eq statusParam }
+                                query = query.andWhere {
+                                    AttendanceRecords.status.lowerCase() eq statusParam.lowercase()
+                                }
                             }
 
                             query.orderBy(
@@ -1102,7 +1113,7 @@ fun Application.configureAdminRoutes() {
                                 AttendanceLogResponse(
                                     id = row[AttendanceRecords.id],
                                     registerNumber = row[AttendanceRecords.registerNumber],
-                                    name = row[Users.name],
+                                    name = row.getOrNull(Users.name) ?: row[AttendanceRecords.registerNumber],
                                     subjectCode = row[AttendanceRecords.subjectCode],
                                     hour = row[AttendanceRecords.hour],
                                     date = row[AttendanceRecords.date].toString(),
