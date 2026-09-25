@@ -260,7 +260,6 @@ fun Application.configureAdminRoutes() {
                             val regNum = row[Users.registerNumber]
                             val studentBatch = row[Users.batch] ?: ""
 
-                            // Determine relevant subjects for the specified batch & semester
                             val targetSubjectCodes = if (semesterParam != null && studentBatch.isNotBlank()) {
                                 BatchSubjects.select(BatchSubjects.subjectCode)
                                     .where { (BatchSubjects.batch eq studentBatch) and (BatchSubjects.semester eq semesterParam) }
@@ -269,7 +268,6 @@ fun Application.configureAdminRoutes() {
                                 emptyList()
                             }
 
-                            // Calculate attendance percentage
                             var recordsQuery = AttendanceRecords.selectAll()
                                 .where { AttendanceRecords.registerNumber eq regNum }
 
@@ -346,7 +344,6 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // --- GET DETAILED STUDENT PROFILE & ATTENDANCE BY SEMESTER ---
                 get("/students/{regNumber}/details") {
                     val regNum = call.parameters["regNumber"]?.uppercase()
                         ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse("Reg Number required"))
@@ -358,7 +355,6 @@ fun Application.configureAdminRoutes() {
 
                         val userBatch = userRow[Users.batch] ?: ""
 
-                        // Fetch mapped subjects for the selected semester
                         val activeSubjects = if (semesterParam != null) {
                             BatchSubjects.innerJoin(Subjects, { BatchSubjects.subjectCode }, { Subjects.code })
                                 .select(Subjects.code, Subjects.name)
@@ -426,7 +422,6 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.NotFound, ApiResponse("Student profile not found."))
                     }
                 }
-
 
                 post("/delete-student") {
                     val req = call.receive<DeleteStudentRequest>()
@@ -586,7 +581,6 @@ fun Application.configureAdminRoutes() {
                             }
                         }
 
-                        // Store plain text password directly (Fallback to DOB if password not provided)
                         val plainPassword = req.password?.takeIf { it.isNotBlank() } ?: rawDob
 
                         transaction {
@@ -596,7 +590,7 @@ fun Application.configureAdminRoutes() {
                                 it[Teachers.department] = department
                                 it[dateOfBirth] = parsedDob
                                 it[phoneNumber] = req.phoneNumber?.trim() ?: "N/A"
-                                it[password] = plainPassword // <-- Saved directly as plain text
+                                it[password] = plainPassword
                             }
                         }
                         call.respond(HttpStatusCode.Created, ApiResponse("Teacher created successfully."))
@@ -1024,7 +1018,6 @@ fun Application.configureAdminRoutes() {
                     try {
                         val principal = call.principal<JWTPrincipal>()
                         val rawDeptClaim = principal?.payload?.getClaim("department")?.asString() ?: ""
-                        // Extracts "bca" from "bca@wmoig" or handles raw department string
                         val adminDepartment = rawDeptClaim.split("@").firstOrNull()?.trim()?.lowercase() ?: "bca"
 
                         val dateParam = call.request.queryParameters["date"]
@@ -1037,26 +1030,22 @@ fun Application.configureAdminRoutes() {
                         val statusParam = call.request.queryParameters["status"]
 
                         val logs = transaction {
-                            // 1. Use LEFT JOIN so logs are retained even if user table entry is missing/mismatched
                             var query = AttendanceRecords
                                 .leftJoin(Users, { AttendanceRecords.registerNumber }, { Users.registerNumber })
                                 .selectAll()
 
-                            // 2. Department Filtering (Case-Insensitive)
                             if (adminDepartment.isNotBlank()) {
                                 query = query.andWhere {
                                     AttendanceRecords.department.lowerCase() eq adminDepartment
                                 }
                             }
 
-                            // 3. Batch Filtering (Via Users table with Lowercase & Trim)
                             if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
                                 query = query.andWhere {
                                     Users.batch.trim().lowerCase() eq batchParam.trim().lowercase()
                                 }
                             }
 
-                            // 4. Semester Filtering (Via BatchSubjects mapped subject codes)
                             if (semesterParam != null) {
                                 val semesterSubjectCodes = BatchSubjects
                                     .select(BatchSubjects.subjectCode)
@@ -1068,14 +1057,12 @@ fun Application.configureAdminRoutes() {
                                 }
                             }
 
-                            // 5. Single Date Filter
                             if (!dateParam.isNullOrBlank() && dateParam != "ALL") {
                                 try {
                                     query = query.andWhere { AttendanceRecords.date eq LocalDate.parse(dateParam) }
                                 } catch (_: Exception) {}
                             }
 
-                            // 6. Date Range Filter
                             if (!startDateParam.isNullOrBlank()) {
                                 try {
                                     query = query.andWhere { AttendanceRecords.date greaterEq LocalDate.parse(startDateParam) }
@@ -1087,19 +1074,16 @@ fun Application.configureAdminRoutes() {
                                 } catch (_: Exception) {}
                             }
 
-                            // 7. Subject Code Filter
                             if (!subjectCodeParam.isNullOrBlank() && subjectCodeParam != "ALL") {
                                 query = query.andWhere {
                                     AttendanceRecords.subjectCode.lowerCase() eq subjectCodeParam.lowercase()
                                 }
                             }
 
-                            // 8. Hour Filter
                             if (hourParam != null) {
                                 query = query.andWhere { AttendanceRecords.hour eq hourParam }
                             }
 
-                            // 9. Status Filter
                             if (!statusParam.isNullOrBlank() && statusParam != "ALL") {
                                 query = query.andWhere {
                                     AttendanceRecords.status.lowerCase() eq statusParam.lowercase()
@@ -1116,7 +1100,7 @@ fun Application.configureAdminRoutes() {
                                     registerNumber = row[AttendanceRecords.registerNumber],
                                     name = row.getOrNull(Users.name) ?: row[AttendanceRecords.registerNumber],
                                     subjectCode = row[AttendanceRecords.subjectCode],
-                                    subjectName = row[AttendanceRecords.subjectName] ?: row[AttendanceRecords.subjectCode], // <-- Map subjectName here
+                                    subjectName = row[AttendanceRecords.subjectName] ?: row[AttendanceRecords.subjectCode],
                                     hour = row[AttendanceRecords.hour],
                                     date = row[AttendanceRecords.date].toString(),
                                     status = row[AttendanceRecords.status]
@@ -1128,6 +1112,38 @@ fun Application.configureAdminRoutes() {
                     } catch (e: Exception) {
                         e.printStackTrace()
                         call.respond(HttpStatusCode.InternalServerError, ApiResponse(e.message ?: "Failed to fetch attendance logs."))
+                    }
+                }
+
+                // --- DELETE AN ENTIRE HOUR SESSION ---
+                delete("/attendance-session") {
+                    try {
+                        val principal = call.principal<JWTPrincipal>()
+                        val rawDeptClaim = principal?.payload?.getClaim("department")?.asString() ?: ""
+                        val adminDepartment = rawDeptClaim.split("@").firstOrNull()?.trim()?.lowercase() ?: "bca"
+
+                        val dateParam = call.request.queryParameters["date"]
+                        val hourParam = call.request.queryParameters["hour"]?.toIntOrNull()
+                        val subjectCodeParam = call.request.queryParameters["subjectCode"]
+
+                        if (dateParam.isNullOrBlank() || hourParam == null || subjectCodeParam.isNullOrBlank()) {
+                            call.respond(HttpStatusCode.BadRequest, ApiResponse("Date, hour, and subjectCode parameters are required."))
+                            return@delete
+                        }
+
+                        val deletedCount = transaction {
+                            AttendanceRecords.deleteWhere {
+                                (date eq LocalDate.parse(dateParam)) and
+                                        (hour eq hourParam) and
+                                        (subjectCode.lowerCase() eq subjectCodeParam.lowercase()) and
+                                        (department.lowerCase() eq adminDepartment)
+                            }
+                        }
+
+                        call.respond(HttpStatusCode.OK, ApiResponse("Successfully removed hour session ($deletedCount entries deleted)."))
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        call.respond(HttpStatusCode.InternalServerError, ApiResponse("Failed to delete attendance session."))
                     }
                 }
 

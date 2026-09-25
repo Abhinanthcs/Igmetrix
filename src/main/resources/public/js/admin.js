@@ -888,7 +888,6 @@ async function populateSubjectFilter() {
     try {
         let subjects = [];
 
-        // Strategy 2: Fast local cache filter from in-memory cache
         if (selectedBatch !== 'ALL' || selectedSemester !== 'ALL') {
             const cache = window.assignedSubjectsCache || [];
             const filteredMappings = cache.filter(item => {
@@ -905,7 +904,6 @@ async function populateSubjectFilter() {
             }
         }
 
-        // Fallback to catalog API if cache yields empty results
         if (subjects.length === 0) {
             const catalog = await apiFetch('/api/admin/subjects', 'GET');
             subjects = catalog || [];
@@ -1318,7 +1316,6 @@ function renderPivotAttendanceTable(logs) {
         return;
     }
 
-    // Map subject codes from cache as a secondary fallback
     const subjectNameCacheMap = new Map();
     (window.assignedSubjectsCache || assignedSubjectsCache || []).forEach(item => {
         if (item.subjectCode && item.subjectName) {
@@ -1336,18 +1333,28 @@ function renderPivotAttendanceTable(logs) {
         const hour = log.hour ?? 1;
         const subjCode = log.subjectCode || 'SUBJ';
 
-        // 1st Priority: Backend log.subjectName
-        // 2nd Priority: In-memory frontend cache lookup
-        // 3rd Priority: Fallback to subject code
         const rawSubjName = log.subjectName || subjectNameCacheMap.get(subjCode) || subjCode;
-
-        // Truncate subject name for neat alignment in header
         const shortSubjName = rawSubjName.length > 12 ? rawSubjName.substring(0, 10) + '..' : rawSubjName;
 
         const sessionKey = `${date}_H${hour}_${subjCode}`;
 
-        // Header Structure: (H1/CODE) -> Subject Name -> Date
-        const headerLabel = `(H${hour}/${escapeHtml(subjCode)})<br/><span class="text-[11px] font-semibold text-indigo-600 block my-0.5 truncate max-w-[120px]" title="${escapeHtml(rawSubjName)}">${escapeHtml(shortSubjName)}</span><span class="text-[10px] font-normal text-slate-400 block">${date}</span>`;
+        // Header Label with trash button for deleting the whole session
+        const headerLabel = `
+            <div class="relative group inline-block">
+                <div class="flex items-center justify-center gap-1">
+                    <span>(H${hour}/${escapeHtml(subjCode)})</span>
+                    <button onclick="deleteAttendanceSession('${date}', ${hour}, '${escapeHtml(subjCode)}')"
+                            title="Delete this hour session completely"
+                            class="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded transition-colors cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+                <span class="text-[11px] font-semibold text-indigo-600 block my-0.5 truncate max-w-[120px]" title="${escapeHtml(rawSubjName)}">${escapeHtml(shortSubjName)}</span>
+                <span class="text-[10px] font-normal text-slate-400 block">${date}</span>
+            </div>
+        `;
 
         if (!studentsMap.has(reg)) {
             studentsMap.set(reg, { reg, name, attendance: {} });
@@ -1370,7 +1377,6 @@ function renderPivotAttendanceTable(logs) {
         };
     });
 
-    // --- SORTING: HIGHER DATE FIRST, HIGHER HOUR FIRST ---
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
         const dateComp = new Date(b[1].rawDate) - new Date(a[1].rawDate);
         if (dateComp !== 0) return dateComp;
@@ -1384,7 +1390,7 @@ function renderPivotAttendanceTable(logs) {
             <tr class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-600 text-xs">
                 <th class="py-3 px-4 text-left">REGISTER NO</th>
                 <th class="py-3 px-4 text-left">STUDENT NAME</th>
-                ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[120px] whitespace-nowrap align-top">${session.header}</th>`).join('')}
+                ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[130px] whitespace-nowrap align-top">${session.header}</th>`).join('')}
             </tr>
         `;
     }
@@ -1427,15 +1433,35 @@ function renderPivotAttendanceTable(logs) {
     `).join('');
 }
 
-// Optimized toggle function: Updates DOM immediately without re-rendering the full table
+async function deleteAttendanceSession(date, hour, subjectCode) {
+    requestConfirmation({
+        title: `Remove Hour Session?`,
+        message: `Are you sure you want to completely delete attendance logs for Hour ${hour} (${subjectCode}) on ${date}? This action cannot be undone.`,
+        onConfirm: async () => {
+            try {
+                const queryParams = new URLSearchParams({
+                    date: date,
+                    hour: hour,
+                    subjectCode: subjectCode
+                });
+
+                const res = await apiFetch(`/api/admin/attendance-session?${queryParams.toString()}`, 'DELETE');
+                showAlert(res.message || 'Hour session deleted successfully.');
+                await fetchAttendanceLogs();
+            } catch (err) {
+                showAlert(`Failed to delete hour session: ${err.message}`, true);
+            }
+        }
+    });
+}
+
+// Optimized toggle function
 async function toggleAttendanceStatus(id, newStatus, btnElement) {
     if (!btnElement) return;
 
-    // 1. Save original state for instant rollback if API request fails
     const originalText = btnElement.textContent.trim();
     const originalClassName = btnElement.className;
 
-    // 2. Define new visual button styles and determine next state in the cycle (P -> A -> L -> P)
     let nextStatusText = 'P';
     let nextStatusForApi = 'PRESENT';
     let btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20';
@@ -1454,12 +1480,10 @@ async function toggleAttendanceStatus(id, newStatus, btnElement) {
         btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/20';
     }
 
-    // 3. Optimistic DOM Update (Instant feedback to user)
     btnElement.textContent = nextStatusText;
     btnElement.className = `w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center ${btnStyle}`;
     btnElement.setAttribute('onclick', `toggleAttendanceStatus('${id}', '${nextStatusForApi}', this)`);
 
-    // 4. In-Memory Cache Update
     if (Array.isArray(window.currentAttendanceLogs)) {
         const logItem = window.currentAttendanceLogs.find(l => String(l.id) === String(id));
         if (logItem) {
@@ -1467,7 +1491,6 @@ async function toggleAttendanceStatus(id, newStatus, btnElement) {
         }
     }
 
-    // 5. Silent Background API Update
     try {
         await apiFetch(`/api/admin/attendance/${id}`, 'PUT', { id: String(id), status: newStatus });
         showAlert('Attendance status updated.');
@@ -1476,7 +1499,6 @@ async function toggleAttendanceStatus(id, newStatus, btnElement) {
             await apiFetch('/api/admin/update-attendance', 'POST', { id: String(id), status: newStatus });
             showAlert('Attendance status updated.');
         } catch (fallbackErr) {
-            // Revert DOM back to original state if both requests fail
             btnElement.textContent = originalText;
             btnElement.className = originalClassName;
             btnElement.setAttribute('onclick', `toggleAttendanceStatus('${id}', '${newStatus}', this)`);
@@ -1517,7 +1539,7 @@ function exportAdminLogsCSV() {
     });
 
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
-        const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
+        const dateComp = new Date(a[1].rawDate) - new Date(a[1].rawDate);
         if (dateComp !== 0) return dateComp;
         return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
     });
@@ -1863,6 +1885,7 @@ window.fetchStudentDetailWithSem = fetchStudentDetailWithSem;
 window.toggleEditMode = toggleEditMode;
 window.cancelEditMode = cancelEditMode;
 window.toggleAttendanceStatus = toggleAttendanceStatus;
+window.deleteAttendanceSession = deleteAttendanceSession;
 
 window.toggleTeacherPasswordVisibility = function(index) {
     const el = document.getElementById(`teacher-pwd-${index}`);
