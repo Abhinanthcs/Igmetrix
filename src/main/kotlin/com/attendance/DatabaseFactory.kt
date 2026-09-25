@@ -1,11 +1,30 @@
 package com.attendance
 
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 
 object DatabaseFactory {
     fun init() {
+        val database = Database.connect(createHikariDataSource())
+
+        transaction(database) {
+            SchemaUtils.create(
+                Teachers,
+                Users,
+                AttendanceRecords,
+                Batches,
+                Subjects,
+                Timetables,
+                BatchSubjects,
+                StudentElectiveMappings
+            )
+        }
+    }
+
+    private fun createHikariDataSource(): HikariDataSource {
         val baseUrl = System.getenv("DATABASE_URL")
             ?: "jdbc:postgresql://localhost:5432/attendance_db"
         val dbUser = System.getenv("DATABASE_USER")
@@ -20,24 +39,19 @@ object DatabaseFactory {
             "$baseUrl?sslmode=disable&ssl=false"
         }
 
-        Database.connect(
-            url = dbUrl,
-            driver = "org.postgresql.Driver",
-            user = dbUser,
+        val config = HikariConfig().apply {
+            driverClassName = "org.postgresql.Driver"
+            jdbcUrl = dbUrl
+            username = dbUser
             password = dbPassword
-        )
 
-        transaction {
-            SchemaUtils.create(
-                Teachers,
-                Users,
-                AttendanceRecords,
-                Batches,
-                Subjects,
-                Timetables,
-                BatchSubjects,
-                StudentElectiveMappings
-            )
+            // HikariCP Performance & Stability Configs
+            maximumPoolSize = 10
+            isAutoCommit = false
+            transactionIsolation = "TRANSACTION_REPEATABLE_READ"
+            validate()
         }
+
+        return HikariDataSource(config)
     }
 }

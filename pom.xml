@@ -14,6 +14,7 @@
         <ktor.version>3.0.0</ktor.version>
         <exposed.version>0.57.0</exposed.version>
         <kotlinx.serialization.version>1.7.3</kotlinx.serialization.version>
+        <hikaricp.version>5.1.0</hikaricp.version>
     </properties>
 
     <dependencies>
@@ -87,6 +88,13 @@
             <version>${exposed.version}</version>
         </dependency>
 
+        <!-- HikariCP Connection Pool System -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>${hikaricp.version}</version>
+        </dependency>
+
         <!-- PostgreSQL Database Driver Interface -->
         <dependency>
             <groupId>org.postgresql</groupId>
@@ -117,7 +125,7 @@
     <build>
         <sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
         <plugins>
-            <!-- Kotlin Compiler Plugin (Must bind to lifecycle phases) -->
+            <!-- Kotlin Compiler Plugin -->
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>
