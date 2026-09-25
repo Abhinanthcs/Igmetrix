@@ -366,10 +366,17 @@ function renderDetailedHistoryView(thead, tbody, filtered) {
     }
 
     filtered.forEach(item => {
-        const isPresent = item.status === 'P' || item.status === 'PRESENT';
-        const badgeClass = isPresent
-            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
-            : 'bg-rose-50 text-rose-700 border-rose-200/80';
+        const rawStatus = String(item.status || '').toUpperCase();
+        let badgeClass = 'bg-rose-50 text-rose-700 border-rose-200/80';
+        let statusLabel = 'A';
+
+        if (rawStatus === 'P' || rawStatus === 'PRESENT') {
+            badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200/80';
+            statusLabel = 'P';
+        } else if (rawStatus === 'L' || rawStatus === 'LATE') {
+            badgeClass = 'bg-amber-50 text-amber-700 border-amber-200/80';
+            statusLabel = 'L';
+        }
 
         const row = document.createElement('tr');
         row.className = 'hover:bg-slate-50/80 transition-colors';
@@ -380,7 +387,7 @@ function renderDetailedHistoryView(thead, tbody, filtered) {
             <td class="px-4 py-3 text-slate-700 font-semibold">${escapeHtml(String(item.hour))}</td>
             <td class="px-4 py-3">
                 <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] font-bold rounded border ${badgeClass}">
-                    ${isPresent ? 'P' : 'A'}
+                    ${statusLabel}
                 </span>
             </td>
         `;
@@ -427,10 +434,12 @@ function renderMatrixHistoryView(thead, tbody, filtered) {
         for (let h = 1; h <= 5; h++) {
             const record = dayHours[h];
             const status = record ? String(record.status || '').toUpperCase() : '';
+
             const isPresent = status === 'P' || status === 'PRESENT';
+            const isLate = status === 'L' || status === 'LATE';
             const isAbsent = status === 'A' || status === 'ABSENT';
 
-            if (!record || (!isPresent && !isAbsent)) {
+            if (!record || (!isPresent && !isLate && !isAbsent)) {
                 hourCellsHtml += `
                     <td class="px-4 py-3 text-center">
                         <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] text-slate-300 font-medium rounded border border-slate-100 bg-slate-50/50">-</span>
@@ -438,10 +447,16 @@ function renderMatrixHistoryView(thead, tbody, filtered) {
                 `;
             } else {
                 const tooltipText = `${escapeHtml(record.subjectCode)} - ${escapeHtml(record.subjectName)}`;
-                const badgeClass = isPresent
-                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80'
-                    : 'text-rose-700 bg-rose-50 border-rose-200/80';
-                const label = isPresent ? 'P' : 'A';
+                let badgeClass = 'text-rose-700 bg-rose-50 border-rose-200/80';
+                let label = 'A';
+
+                if (isPresent) {
+                    badgeClass = 'text-emerald-700 bg-emerald-50 border-emerald-200/80';
+                    label = 'P';
+                } else if (isLate) {
+                    badgeClass = 'text-amber-700 bg-amber-50 border-amber-200/80';
+                    label = 'L';
+                }
 
                 hourCellsHtml += `
                     <td class="px-4 py-3 text-center" title="${tooltipText}">
@@ -675,14 +690,21 @@ function exportStudentHistoryCSV() {
     const regNum = document.getElementById('regNum')?.innerText || 'Student';
     const headers = ['Log ID', 'Subject Code', 'Subject Name', 'Date', 'Hour', 'Status'];
 
-    const rows = allHistoryCache.map(item => [
-        item.id,
-        item.subjectCode || 'N/A',
-        item.subjectName || 'N/A',
-        item.date,
-        item.hour,
-        (item.status === 'P' || item.status === 'PRESENT') ? 'PRESENT' : 'ABSENT'
-    ]);
+    const rows = allHistoryCache.map(item => {
+        const raw = String(item.status || '').toUpperCase();
+        let statusStr = 'ABSENT';
+        if (raw === 'P' || raw === 'PRESENT') statusStr = 'PRESENT';
+        if (raw === 'L' || raw === 'LATE') statusStr = 'LATE';
+
+        return [
+            item.id,
+            item.subjectCode || 'N/A',
+            item.subjectName || 'N/A',
+            item.date,
+            item.hour,
+            statusStr
+        ];
+    });
 
     const filename = `Attendance_History_${regNum}_${new Date().toISOString().split('T')[0]}.csv`;
     downloadCSV(filename, headers, rows);
