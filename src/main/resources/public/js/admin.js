@@ -77,11 +77,9 @@ async function apiFetch(endpoint, method = 'GET', body = null) {
 
     const response = await fetch(endpoint, options);
 
+    // MODIFIED: Disabled login redirection on 401 to allow passwordless access
     if (response.status === 401) {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem('adminDepartment');
-        window.location.href = '/login.html';
-        throw new Error('Unauthorized session. Redirecting to login.');
+        console.warn('API returned 401 Unauthorized. Accessing in passwordless/guest mode.');
     }
 
     const text = await response.text();
@@ -113,7 +111,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initDeptBadge() {
-    const dept = localStorage.getItem('adminDepartment') || 'DEPT_ADMIN';
+    // MODIFIED: Ensure a default department is active if no login session exists
+    let dept = localStorage.getItem('adminDepartment');
+    if (!dept) {
+        dept = 'BCA';
+        localStorage.setItem('adminDepartment', dept);
+    }
     const badge = document.getElementById('dept-badge');
     if (badge) badge.textContent = dept;
 }
@@ -246,7 +249,7 @@ function requestConfirmation({ title, message, onConfirm }) {
 
 // STRATEGY 2: Pre-fetch & Memory Cache Initializer
 async function loadDashboardData() {
-    await Promise.all([
+    await Promise.allSettled([
         fetchStudents(),
         fetchBatches(),
         fetchTeachers(),
@@ -316,7 +319,7 @@ function initFormListeners() {
     document.getElementById('logout-btn')?.addEventListener('click', () => {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem('adminDepartment');
-        window.location.href = '/login.html';
+        window.location.reload();
     });
 }
 

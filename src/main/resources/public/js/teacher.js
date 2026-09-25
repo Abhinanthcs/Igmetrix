@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('date').value = new Date().toISOString().split('T')[0];
     loadBatches();
 
-    document.getElementById('bulkAttendanceForm').addEventListener('submit', submitBulkAttendance);
+    document.getElementById('bulkAttendanceForm')?.addEventListener('submit', submitBulkAttendance);
 
     // Event listeners to trigger auto-select whenever time/date inputs change
     document.getElementById('date')?.addEventListener('change', autoSelectSubjectFromTimetable);
@@ -38,7 +38,7 @@ function getAuthHeader() {
 
 function logout() {
     localStorage.removeItem('jwtToken');
-    window.location.href = 'login.html';
+    window.location.reload();
 }
 
 function markAll(status) {
@@ -89,13 +89,18 @@ async function onBatchOrSemChange() {
         await autoSelectSubjectFromTimetable();
     } else if (batch) {
         await loadStudentRoster(batch, sem, subjectCode);
-        document.getElementById('subjectSelect').innerHTML = '<option value="">Select Subject</option>';
+        const subjSel = document.getElementById('subjectSelect');
+        if (subjSel) subjSel.innerHTML = '<option value="">Select Subject</option>';
     } else {
-        document.getElementById('subjectSelect').innerHTML = '<option value="">Select Subject</option>';
-        document.getElementById('studentRosterBody').innerHTML = `
-            <tr>
-                <td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">Select a batch to load students...</td>
-            </tr>`;
+        const subjSel = document.getElementById('subjectSelect');
+        if (subjSel) subjSel.innerHTML = '<option value="">Select Subject</option>';
+        const roster = document.getElementById('studentRosterBody');
+        if (roster) {
+            roster.innerHTML = `
+                <tr>
+                    <td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">Select a batch to load students...</td>
+                </tr>`;
+        }
     }
 }
 
@@ -187,16 +192,21 @@ async function autoSelectSubjectFromTimetable() {
 // Update hidden fields & reload student roster when subject changes
 async function onSubjectSelectChange() {
     const subjectSelect = document.getElementById('subjectSelect');
+    if (!subjectSelect) return;
+
     const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
     const batch = document.getElementById('batchSelect')?.value;
     const sem = document.getElementById('semesterSelect')?.value;
 
+    const codeInput = document.getElementById('subjectCode');
+    const nameInput = document.getElementById('subjectName');
+
     if (selectedOption && selectedOption.value) {
-        document.getElementById('subjectCode').value = selectedOption.value;
-        document.getElementById('subjectName').value = selectedOption.dataset.name || '';
+        if (codeInput) codeInput.value = selectedOption.value;
+        if (nameInput) nameInput.value = selectedOption.dataset.name || '';
     } else {
-        document.getElementById('subjectCode').value = '';
-        document.getElementById('subjectName').value = '';
+        if (codeInput) codeInput.value = '';
+        if (nameInput) nameInput.value = '';
     }
 
     if (batch) {
@@ -317,10 +327,10 @@ async function submitBulkAttendance(e) {
     });
 
     const payload = {
-        subjectCode: document.getElementById('subjectCode').value.trim(),
-        subjectName: document.getElementById('subjectName').value.trim(),
-        date: document.getElementById('date').value,
-        hour: parseInt(document.getElementById('hour').value, 10),
+        subjectCode: document.getElementById('subjectCode')?.value.trim() || '',
+        subjectName: document.getElementById('subjectName')?.value.trim() || '',
+        date: document.getElementById('date')?.value || '',
+        hour: parseInt(document.getElementById('hour')?.value || '1', 10),
         students: selectedStudents
     };
 

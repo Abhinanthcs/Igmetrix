@@ -29,13 +29,7 @@ function setDropdownLoading(selectEl, isLoading, text = 'Loading options...') {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const token = localStorage.getItem('jwtToken');
-
-    if (!token) {
-        window.location.href = 'login.html';
-        return;
-    }
-
+    const token = localStorage.getItem('jwtToken') || '';
     initSemesterAndLoad(token);
 });
 
@@ -46,8 +40,10 @@ async function initSemesterAndLoad(token) {
         setDropdownLoading(semSelect, true, 'Loading Semesters...');
     }
 
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
     try {
-        const res = await fetch('/student/semesters', { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await fetch('/student/semesters', { headers });
         if (res.ok) {
             const data = await res.json();
             populateSemesterOptions(Array.isArray(data) && data.length > 0 ? data : undefined);
@@ -64,7 +60,7 @@ async function initSemesterAndLoad(token) {
         semSelect.addEventListener('change', (e) => {
             const semester = e.target.value || 'ALL';
             filterState.semester = semester;
-            const tokenNow = localStorage.getItem('jwtToken');
+            const tokenNow = localStorage.getItem('jwtToken') || '';
             loadSummary(tokenNow, semester);
             loadHistory(tokenNow, semester);
         });
@@ -100,12 +96,11 @@ function populateSemesterOptions(semesters = []) {
 async function loadSummary(token, semester = 'ALL') {
     try {
         const url = `/student/summary${semester && semester !== 'ALL' ? `?semester=${encodeURIComponent(semester)}` : ''}`;
-        const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const response = await fetch(url, { headers });
 
         if (response.status === 401) {
-            logout();
+            console.warn('Student summary endpoint returned 401 Unauthorized.');
             return;
         }
 
@@ -119,10 +114,14 @@ async function loadSummary(token, semester = 'ALL') {
         }
 
         // 2. Populate Overview Stats
-        document.getElementById('regNum').innerText = data.registerNumber || '-';
-        document.getElementById('totalClasses').innerText = data.totalClasses || 0;
-        document.getElementById('presentCount').innerText = data.presentCount || 0;
-        document.getElementById('absentCount').innerText = data.absentCount || 0;
+        const regEl = document.getElementById('regNum');
+        if (regEl) regEl.innerText = data.registerNumber || '-';
+        const totEl = document.getElementById('totalClasses');
+        if (totEl) totEl.innerText = data.totalClasses || 0;
+        const presEl = document.getElementById('presentCount');
+        if (presEl) presEl.innerText = data.presentCount || 0;
+        const absEl = document.getElementById('absentCount');
+        if (absEl) absEl.innerText = data.absentCount || 0;
 
         const overallPerc = data.attendancePercentage || 0;
         const percElement = document.getElementById('attendancePerc');
@@ -163,12 +162,14 @@ async function loadHistory(token, semester = 'ALL') {
 
     try {
         const url = `/student/history${semester && semester !== 'ALL' ? `?semester=${encodeURIComponent(semester)}` : ''}`;
-        const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const response = await fetch(url, { headers });
 
         if (response.status === 401) {
-            logout();
+            console.warn('Student history endpoint returned 401 Unauthorized.');
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 italic">Please sign in to view your detailed history.</td></tr>`;
+            }
             return;
         }
 
@@ -662,7 +663,7 @@ function escapeHtml(str) {
 
 function logout() {
     localStorage.removeItem('jwtToken');
-    window.location.href = 'login.html';
+    window.location.reload();
 }
 
 function exportStudentHistoryCSV() {
