@@ -17,12 +17,13 @@ function setDropdownLoading(selectEl, isLoading, text = 'Loading options...') {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('date');
+    if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+
     loadBatches();
 
     document.getElementById('bulkAttendanceForm')?.addEventListener('submit', submitBulkAttendance);
 
-    // Event listeners to trigger auto-select whenever time/date inputs change
     document.getElementById('date')?.addEventListener('change', autoSelectSubjectFromTimetable);
     document.getElementById('hour')?.addEventListener('input', autoSelectSubjectFromTimetable);
     document.getElementById('hour')?.addEventListener('change', autoSelectSubjectFromTimetable);
@@ -36,9 +37,25 @@ function getAuthHeader() {
     return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
-function logout() {
+function logout(btnElement) {
+    const btn = btnElement || document.getElementById('logout-btn') || document.querySelector('.signout-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+        btn.innerHTML = `
+            <span class="inline-flex items-center justify-center gap-2">
+                <svg class="animate-spin h-3.5 w-3.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Signing Out...</span>
+            </span>
+        `;
+    }
     localStorage.removeItem('jwtToken');
-    window.location.reload();
+    setTimeout(() => {
+        window.location.href = 'login.html';
+    }, 300);
 }
 
 function markAll(status) {
@@ -214,7 +231,7 @@ async function onSubjectSelectChange() {
     }
 }
 
-// Load student roster (Filtered by Global Subject assignment if applicable)
+// Load student roster
 async function loadStudentRoster(batch, semester, subjectCode) {
     const tbody = document.getElementById('studentRosterBody');
     if (!tbody) return;
@@ -257,7 +274,6 @@ async function loadStudentRoster(batch, semester, subjectCode) {
         return;
     }
 
-    // --- SORT STUDENTS BY REGISTER NUMBER (ASCENDING) ---
     students.sort((a, b) => {
         const regA = (a.registerNumber || '').toString().toUpperCase();
         const regB = (b.registerNumber || '').toString().toUpperCase();
@@ -300,7 +316,6 @@ async function submitBulkAttendance(e) {
 
     if (feedback) feedback.className = "hidden";
 
-    // 1. Save original button state & show loading animation
     const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Submit All Attendance';
     if (submitBtn) {
         submitBtn.disabled = true;
@@ -364,7 +379,6 @@ async function submitBulkAttendance(e) {
             feedback.innerText = "Error connecting to backend server.";
         }
     } finally {
-        // 2. Restore original button state
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');

@@ -106,14 +106,12 @@ async function loadSummary(token, semester = 'ALL') {
 
         const data = await response.json();
 
-        // 1. Fetch Student Name with fallbacks for different backend DTO structures
         const fetchedName = data.studentName || data.name || data.user?.name || data.username || 'Student';
         const nameElement = document.getElementById('studentWelcomeName');
         if (nameElement) {
             nameElement.innerText = fetchedName;
         }
 
-        // 2. Populate Overview Stats
         const regEl = document.getElementById('regNum');
         if (regEl) regEl.innerText = data.registerNumber || '-';
         const totEl = document.getElementById('totalClasses');
@@ -676,9 +674,25 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
-function logout() {
+function logout(btnElement) {
+    const btn = btnElement || document.getElementById('logout-btn') || document.querySelector('.signout-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+        btn.innerHTML = `
+            <span class="inline-flex items-center justify-center gap-2">
+                <svg class="animate-spin h-3.5 w-3.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Signing Out...</span>
+            </span>
+        `;
+    }
     localStorage.removeItem('jwtToken');
-    window.location.reload();
+    setTimeout(() => {
+        window.location.href = 'login.html';
+    }, 300);
 }
 
 function exportStudentHistoryCSV() {

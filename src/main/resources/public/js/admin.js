@@ -77,7 +77,6 @@ async function apiFetch(endpoint, method = 'GET', body = null) {
 
     const response = await fetch(endpoint, options);
 
-    // MODIFIED: Disabled login redirection on 401 to allow passwordless access
     if (response.status === 401) {
         console.warn('API returned 401 Unauthorized. Accessing in passwordless/guest mode.');
     }
@@ -111,7 +110,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initDeptBadge() {
-    // MODIFIED: Ensure a default department is active if no login session exists
     let dept = localStorage.getItem('adminDepartment');
     if (!dept) {
         dept = 'BCA';
@@ -316,11 +314,17 @@ function initFormListeners() {
         });
     });
 
-    document.getElementById('logout-btn')?.addEventListener('click', () => {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem('adminDepartment');
-        window.location.reload();
-    });
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            setButtonLoading(logoutBtn, true, 'Signing Out...');
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem('adminDepartment');
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 300);
+        });
+    }
 }
 
 // --- STUDENT DIRECTORY WITH CLICKABLE DETAILS ---
@@ -1341,7 +1345,6 @@ function renderPivotAttendanceTable(logs) {
 
         const sessionKey = `${date}_H${hour}_${subjCode}`;
 
-        // Header Label with trash button for deleting the whole session
         const headerLabel = `
             <div class="relative group inline-block">
                 <div class="flex items-center justify-center gap-1">
