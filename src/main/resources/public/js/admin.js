@@ -403,23 +403,32 @@ async function fetchStudentDetailWithSem() {
     try {
         const student = await apiFetch(`/api/admin/students/${encodeURIComponent(activeDetailRegNum)}/details?semester=${selectedSem}`, 'GET');
 
-        document.getElementById('detail-student-name').textContent = student.name;
+        if (!student) return;
+
+        document.getElementById('detail-student-name').textContent = student.name || 'Student Profile';
         document.getElementById('detail-reg-sub').textContent = `${student.registerNumber} • ${student.department} (${student.batch})`;
 
-        document.getElementById('detail-input-name').value = student.name;
+        document.getElementById('detail-input-name').value = student.name || '';
         document.getElementById('detail-input-gender').value = student.gender || 'Male';
-        document.getElementById('detail-input-dob').value = student.dateOfBirth;
-        document.getElementById('detail-input-kreap').value = student.kreapPrn;
-        document.getElementById('detail-input-appno').value = student.applicationNumber;
-        document.getElementById('detail-input-phone').value = student.phoneNumber;
+        document.getElementById('detail-input-dob').value = student.dateOfBirth || '';
+        document.getElementById('detail-input-kreap').value = student.kreapPrn || 'N/A';
+        document.getElementById('detail-input-appno').value = student.applicationNumber || 'N/A';
+        document.getElementById('detail-input-phone').value = student.phoneNumber || 'N/A';
 
-        document.getElementById('detail-total-classes').textContent = student.totalClasses;
-        document.getElementById('detail-present-classes').textContent = student.presentCount; // Strictly P
+        // Extract numbers directly from Ktor DTO Response
+        const totalClasses = student.totalClasses || 0;
+        const presentCount = student.presentCount || 0;
+        const lateCount = student.lateCount || 0;
+        const absentCount = (student.absentCount !== undefined) ? student.absentCount : (totalClasses - presentCount);
 
-        // Compute absent count including Late
-        const totalAbsent = (student.absentCount || 0) + (student.lateCount || 0);
-        document.getElementById('detail-absent-classes').textContent = totalAbsent;
-        document.getElementById('detail-perc').textContent = `${student.attendancePercentage}%`;
+        document.getElementById('detail-total-classes').textContent = totalClasses;
+        document.getElementById('detail-present-classes').textContent = presentCount;
+
+        const lateEl = document.getElementById('detail-late-classes');
+        if (lateEl) lateEl.textContent = lateCount;
+
+        document.getElementById('detail-absent-classes').textContent = absentCount;
+        document.getElementById('detail-perc').textContent = `${student.attendancePercentage || 0}%`;
 
         // Update table head if element exists
         const thead = document.getElementById('detail-subject-table-head');
@@ -441,16 +450,23 @@ async function fetchStudentDetailWithSem() {
             if (!student.subjectBreakdown || student.subjectBreakdown.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-400 italic">No subjects mapped for Semester ${selectedSem}.</td></tr>`;
             } else {
-                tbody.innerHTML = student.subjectBreakdown.map(sub => `
-                    <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="py-2.5 px-4 font-mono font-bold text-slate-800">${escapeHtml(sub.subjectCode)}</td>
-                        <td class="py-2.5 px-4 font-medium text-slate-800">${escapeHtml(sub.subjectName)}</td>
-                        <td class="py-2.5 px-4 text-center font-mono font-bold text-emerald-600">${sub.attendedClasses || sub.presentCount}</td>
-                        <td class="py-2.5 px-4 text-center font-mono font-bold text-amber-600">${sub.lateCount || 0}</td>
-                        <td class="py-2.5 px-4 text-center font-mono font-bold text-slate-900">${sub.totalClasses}</td>
-                        <td class="py-2.5 px-4 text-right font-mono font-bold ${sub.percentage >= 75 ? 'text-emerald-600' : 'text-rose-600'}">${sub.percentage}%</td>
-                    </tr>
-                `).join('');
+                tbody.innerHTML = student.subjectBreakdown.map(sub => {
+                    const subAttended = sub.attendedClasses !== undefined ? sub.attendedClasses : (sub.presentCount || 0);
+                    const subLate = sub.lateClasses !== undefined ? sub.lateClasses : (sub.lateCount || 0);
+                    const subTotal = sub.totalClasses || 0;
+                    const subPerc = sub.percentage !== undefined ? sub.percentage : 0;
+
+                    return `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="py-2.5 px-4 font-mono font-bold text-slate-800">${escapeHtml(sub.subjectCode)}</td>
+                            <td class="py-2.5 px-4 font-medium text-slate-800">${escapeHtml(sub.subjectName)}</td>
+                            <td class="py-2.5 px-4 text-center font-mono font-bold text-emerald-600">${subAttended}</td>
+                            <td class="py-2.5 px-4 text-center font-mono font-bold text-amber-600">${subLate}</td>
+                            <td class="py-2.5 px-4 text-center font-mono font-bold text-slate-900">${subTotal}</td>
+                            <td class="py-2.5 px-4 text-right font-mono font-bold ${subPerc >= 75 ? 'text-emerald-600' : 'text-rose-600'}">${subPerc}%</td>
+                        </tr>
+                    `;
+                }).join('');
             }
         }
     } catch (err) {
