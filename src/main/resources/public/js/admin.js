@@ -414,20 +414,40 @@ async function fetchStudentDetailWithSem() {
         document.getElementById('detail-input-phone').value = student.phoneNumber;
 
         document.getElementById('detail-total-classes').textContent = student.totalClasses;
-        document.getElementById('detail-present-classes').textContent = student.presentCount;
-        document.getElementById('detail-absent-classes').textContent = student.absentCount;
+        document.getElementById('detail-present-classes').textContent = student.presentCount; // Strictly P
+
+        // Compute absent count including Late
+        const totalAbsent = (student.absentCount || 0) + (student.lateCount || 0);
+        document.getElementById('detail-absent-classes').textContent = totalAbsent;
         document.getElementById('detail-perc').textContent = `${student.attendancePercentage}%`;
+
+        // Update table head if element exists
+        const thead = document.getElementById('detail-subject-table-head');
+        if (thead) {
+            thead.innerHTML = `
+                <tr>
+                    <th class="py-2.5 px-4 text-left">Subject Code</th>
+                    <th class="py-2.5 px-4 text-left">Subject Name</th>
+                    <th class="py-2.5 px-4 text-center">Attended</th>
+                    <th class="py-2.5 px-4 text-center">Late</th>
+                    <th class="py-2.5 px-4 text-center">Total</th>
+                    <th class="py-2.5 px-4 text-right">Attendance %</th>
+                </tr>
+            `;
+        }
 
         const tbody = document.getElementById('detail-subject-table-body');
         if (tbody) {
             if (!student.subjectBreakdown || student.subjectBreakdown.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-slate-400 italic">No subjects mapped for Semester ${selectedSem}.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-400 italic">No subjects mapped for Semester ${selectedSem}.</td></tr>`;
             } else {
                 tbody.innerHTML = student.subjectBreakdown.map(sub => `
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="py-2.5 px-4 font-mono font-bold text-slate-800">${escapeHtml(sub.subjectCode)}</td>
                         <td class="py-2.5 px-4 font-medium text-slate-800">${escapeHtml(sub.subjectName)}</td>
-                        <td class="py-2.5 px-4 text-center font-mono font-bold text-slate-900">${sub.attendedClasses} / ${sub.totalClasses}</td>
+                        <td class="py-2.5 px-4 text-center font-mono font-bold text-emerald-600">${sub.attendedClasses || sub.presentCount}</td>
+                        <td class="py-2.5 px-4 text-center font-mono font-bold text-amber-600">${sub.lateCount || 0}</td>
+                        <td class="py-2.5 px-4 text-center font-mono font-bold text-slate-900">${sub.totalClasses}</td>
                         <td class="py-2.5 px-4 text-right font-mono font-bold ${sub.percentage >= 75 ? 'text-emerald-600' : 'text-rose-600'}">${sub.percentage}%</td>
                     </tr>
                 `).join('');

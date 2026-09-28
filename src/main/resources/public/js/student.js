@@ -580,17 +580,23 @@ function renderSubjectBreakdown(history) {
             subjectMap[code] = {
                 name: item.subjectName || code,
                 total: 0,
-                present: 0
+                present: 0,
+                late: 0
             };
         }
         subjectMap[code].total += 1;
-        if (item.status === 'P' || item.status === 'PRESENT') {
+
+        const rawStatus = String(item.status || '').toUpperCase();
+        if (rawStatus === 'P' || rawStatus === 'PRESENT') {
             subjectMap[code].present += 1;
+        } else if (rawStatus === 'L' || rawStatus === 'LATE') {
+            subjectMap[code].late += 1;
         }
     });
 
     container.innerHTML = Object.keys(subjectMap).map(code => {
         const sub = subjectMap[code];
+        // Late counts as absent, so percentage is strictly Present / Total
         const perc = sub.total > 0 ? Math.round((sub.present / sub.total) * 100) : 0;
 
         let barColor = 'bg-emerald-500';
@@ -620,9 +626,9 @@ function renderSubjectBreakdown(history) {
                 <div class="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
                     <div class="${barColor} h-2 rounded-full transition-all duration-300" style="width: ${perc}%"></div>
                 </div>
-                <div class="flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                    <span class="group-hover:text-indigo-600 transition-colors">View Details &rarr;</span>
-                    <span>${sub.present} / ${sub.total} Classes Attended</span>
+                <div class="flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                    <span>${sub.present} Attended • <span class="text-amber-600 font-bold">${sub.late} Late</span> / ${sub.total} Total</span>
+                    <span class="group-hover:text-indigo-600 transition-colors">Details &rarr;</span>
                 </div>
             </div>
         `;
