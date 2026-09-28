@@ -22,6 +22,7 @@ data class StudentSummaryResponse(
     val studentName: String,
     val totalClasses: Int,
     val presentCount: Int,
+    val lateCount: Int,
     val absentCount: Int,
     val attendancePercentage: Double
 )
@@ -33,7 +34,6 @@ data class CheckinRequest(
     val hour: Int
 )
 
-// Data class to serialize existing records back to the client
 @Serializable
 data class AttendanceRecordResponse(
     val id: Int,
@@ -122,13 +122,11 @@ fun Route.configureStudentRoutes() {
             }
 
             val history = transaction {
-                // Fetch student batch
                 val studentBatch = Users.selectAll()
                     .where { Users.registerNumber eq registerNum }
                     .map { it[Users.batch] }
                     .singleOrNull()
 
-                // Fetch subject codes mapped to student batch and selected semester
                 val subjectCodesForSemester = if (semester != null && studentBatch != null) {
                     BatchSubjects.selectAll()
                         .where { (BatchSubjects.batch eq studentBatch) and (BatchSubjects.semester eq semester) }
@@ -167,7 +165,6 @@ fun Route.configureStudentRoutes() {
             call.respond(HttpStatusCode.OK, history)
         }
 
-        // GET Single Subject History (/student/subject?code=KUDSC50001)
         // GET Single Subject History (/student/subject?code=KUDSC50001)
         get("/student/subject") {
             val principal = call.principal<JWTPrincipal>()
@@ -254,7 +251,6 @@ fun Route.configureStudentRoutes() {
             }
 
             val summary = transaction {
-                // Fetch student name and batch from Users table
                 val studentRow = Users.selectAll()
                     .where { Users.registerNumber eq registerNum }
                     .singleOrNull()
@@ -262,7 +258,6 @@ fun Route.configureStudentRoutes() {
                 val studentName = studentRow?.get(Users.name) ?: "Student"
                 val studentBatch = studentRow?.get(Users.batch)
 
-                // Fetch subject codes mapped strictly to student batch and selected semester
                 val subjectCodesForSemester = if (semester != null && studentBatch != null) {
                     BatchSubjects.selectAll()
                         .where { (BatchSubjects.batch eq studentBatch) and (BatchSubjects.semester eq semester) }
@@ -271,7 +266,6 @@ fun Route.configureStudentRoutes() {
                     emptyList()
                 }
 
-                // Query attendance records for student
                 val allRecordsForStudent = AttendanceRecords.selectAll()
                     .where { AttendanceRecords.registerNumber eq registerNum }
                     .toList()
@@ -288,21 +282,27 @@ fun Route.configureStudentRoutes() {
                     allRecordsForStudent
                 }
 
-                // Compute metrics
                 val total = filteredRecords.size
                 val present = filteredRecords.count {
                     val status = it[AttendanceRecords.status]
                     status == "P" || status == "PRESENT"
                 }
+                val late = filteredRecords.count {
+                    val status = it[AttendanceRecords.status]
+                    status == "L" || status == "LATE"
+                }
+
+
                 val absent = total - present
                 val rawPercentage = if (total > 0) (present.toDouble() / total * 100.0) else 0.0
-                val roundedPercentage = Math.round(rawPercentage * 100.0) / 100.0
+                val roundedPercentage = Math.round(rawPercentage * 10.0) / 10.0
 
                 StudentSummaryResponse(
                     registerNumber = registerNum,
                     studentName = studentName,
                     totalClasses = total,
                     presentCount = present,
+                    lateCount = late,
                     absentCount = absent,
                     attendancePercentage = roundedPercentage
                 )

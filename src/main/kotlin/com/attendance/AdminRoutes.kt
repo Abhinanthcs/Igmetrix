@@ -31,6 +31,7 @@ data class CreateStudentRequest(
     val kreapPrn: String,
     val applicationNumber: String
 )
+
 @Serializable
 data class UpdateStudentRequest(
     val registerNumber: String,
@@ -42,6 +43,7 @@ data class UpdateStudentRequest(
     val kreapPrn: String,
     val applicationNumber: String
 )
+
 @Serializable
 data class StudentDetailResponse(
     val registerNumber: String,
@@ -55,6 +57,7 @@ data class StudentDetailResponse(
     val applicationNumber: String,
     val totalClasses: Long,
     val presentCount: Long,
+    val lateCount: Long,
     val absentCount: Long,
     val attendancePercentage: Double,
     val subjectBreakdown: List<StudentSubjectAttendanceDTO>
@@ -66,6 +69,7 @@ data class StudentSubjectAttendanceDTO(
     val subjectName: String,
     val totalClasses: Long,
     val attendedClasses: Long,
+    val lateClasses: Long,
     val percentage: Double
 )
 
@@ -276,7 +280,9 @@ fun Application.configureAdminRoutes() {
                             }
 
                             val total = recordsQuery.count()
-                            val present = recordsQuery.andWhere { AttendanceRecords.status eq "P" }.count()
+                            val present = recordsQuery.andWhere {
+                                (AttendanceRecords.status eq "P") or (AttendanceRecords.status eq "PRESENT")
+                            }.count()
 
                             val percentage = if (total > 0) ((present.toDouble() / total) * 100) else 0.0
 
@@ -323,6 +329,7 @@ fun Application.configureAdminRoutes() {
                         call.respond(HttpStatusCode.BadRequest, ApiResponse("Failed to register student: ${e.message}"))
                     }
                 }
+
                 put("/students/update") {
                     val req = call.receive<UpdateStudentRequest>()
                     try {
@@ -370,6 +377,7 @@ fun Application.configureAdminRoutes() {
                         val subjectBreakdownList = mutableListOf<StudentSubjectAttendanceDTO>()
                         var totalAllClasses = 0L
                         var totalAllPresent = 0L
+                        var totalAllLate = 0L
 
                         activeSubjects.forEach { (code, name) ->
                             val totalForSubj = AttendanceRecords.selectAll()
@@ -377,13 +385,26 @@ fun Application.configureAdminRoutes() {
                                 .count()
 
                             val presentForSubj = AttendanceRecords.selectAll()
-                                .where { (AttendanceRecords.registerNumber eq regNum) and (AttendanceRecords.subjectCode eq code) and (AttendanceRecords.status eq "P") }
+                                .where {
+                                    (AttendanceRecords.registerNumber eq regNum) and
+                                            (AttendanceRecords.subjectCode eq code) and
+                                            ((AttendanceRecords.status eq "P") or (AttendanceRecords.status eq "PRESENT"))
+                                }
+                                .count()
+
+                            val lateForSubj = AttendanceRecords.selectAll()
+                                .where {
+                                    (AttendanceRecords.registerNumber eq regNum) and
+                                            (AttendanceRecords.subjectCode eq code) and
+                                            ((AttendanceRecords.status eq "L") or (AttendanceRecords.status eq "LATE"))
+                                }
                                 .count()
 
                             val perc = if (totalForSubj > 0) Math.round((presentForSubj.toDouble() / totalForSubj) * 100.0 * 10.0) / 10.0 else 0.0
 
                             totalAllClasses += totalForSubj
                             totalAllPresent += presentForSubj
+                            totalAllLate += lateForSubj
 
                             subjectBreakdownList.add(
                                 StudentSubjectAttendanceDTO(
@@ -391,6 +412,7 @@ fun Application.configureAdminRoutes() {
                                     subjectName = name,
                                     totalClasses = totalForSubj,
                                     attendedClasses = presentForSubj,
+                                    lateClasses = lateForSubj,
                                     percentage = perc
                                 )
                             )
@@ -410,6 +432,7 @@ fun Application.configureAdminRoutes() {
                             applicationNumber = userRow[Users.applicationNumber] ?: "N/A",
                             totalClasses = totalAllClasses,
                             presentCount = totalAllPresent,
+                            lateCount = totalAllLate,
                             absentCount = totalAllClasses - totalAllPresent,
                             attendancePercentage = overallPerc,
                             subjectBreakdown = subjectBreakdownList
@@ -1115,7 +1138,6 @@ fun Application.configureAdminRoutes() {
                     }
                 }
 
-                // --- DELETE AN ENTIRE HOUR SESSION ---
                 delete("/attendance-session") {
                     try {
                         val principal = call.principal<JWTPrincipal>()
