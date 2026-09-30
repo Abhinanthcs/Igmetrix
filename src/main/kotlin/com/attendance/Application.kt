@@ -61,13 +61,41 @@ fun Application.module() {
             return object {}.javaClass.classLoader.getResourceAsStream("public/$path")?.readBytes()
         }
 
-        // 1. Direct Page Routes
+        // --- 1. CLEAN & DYNAMIC ROUTE MAPPINGS ---
+
+        // Root defaults to login
         get("/") {
             val bytes = serveResource("login.html")
             if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
             else call.respondText("login.html not found", status = HttpStatusCode.NotFound)
         }
 
+        get("/login") {
+            val bytes = serveResource("login.html")
+            if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
+            else call.respondText("login.html not found", status = HttpStatusCode.NotFound)
+        }
+
+        // Dynamic hash routes (e.g. /app/adb28f3f9ac736b8 or /admin/adb28f3f9ac736b8)
+        get("/app/{id...}") {
+            val bytes = serveResource("admin.html")
+            if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
+            else call.respondText("admin.html not found", status = HttpStatusCode.NotFound)
+        }
+
+        get("/teacher/{id...}") {
+            val bytes = serveResource("teacher.html")
+            if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
+            else call.respondText("teacher.html not found", status = HttpStatusCode.NotFound)
+        }
+
+        get("/student/{id...}") {
+            val bytes = serveResource("student.html")
+            if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
+            else call.respondText("student.html not found", status = HttpStatusCode.NotFound)
+        }
+
+        // Legacy .html routes for backward compatibility
         get("/login.html") {
             val bytes = serveResource("login.html")
             if (bytes != null) call.respondBytes(bytes, ContentType.Text.Html)
@@ -92,13 +120,13 @@ fun Application.module() {
             else call.respondText("admin.html not found", status = HttpStatusCode.NotFound)
         }
 
-        // 2. API Endpoints
+        // --- 2. API ENDPOINTS ---
         configureAuthRoutes(secret = jwtSecret, issuer = jwtIssuer, audience = jwtAudience)
         configureStudentRoutes()
         configureTeacherRoutes()
         configureAdminRoutes()
 
-        // 3. Static Asset Wildcard Handler
+        // --- 3. STATIC ASSET WILDCARD HANDLER ---
         get("/{path...}") {
             val path = call.parameters.getAll("path")?.joinToString("/") ?: return@get
             val bytes = serveResource(path)
