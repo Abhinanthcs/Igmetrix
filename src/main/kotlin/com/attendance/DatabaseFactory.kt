@@ -32,8 +32,10 @@ object DatabaseFactory {
         val dbPassword = System.getenv("DATABASE_PASSWORD")
             ?: "9g45ta@Xp"
 
-        // Append SSL and connection parameters to the JDBC URL string
-        val dbUrl = if (baseUrl.contains("?")) {
+        // Append SSL parameters if they aren't present
+        val dbUrl = if (baseUrl.contains("sslmode=")) {
+            baseUrl
+        } else if (baseUrl.contains("?")) {
             "$baseUrl&sslmode=disable&ssl=false"
         } else {
             "$baseUrl?sslmode=disable&ssl=false"
@@ -45,11 +47,25 @@ object DatabaseFactory {
             username = dbUser
             password = dbPassword
 
-            // HikariCP Performance & Stability Configs
+            // Pool Sizing
             maximumPoolSize = 10
+            minimumIdle = 10 // Fixed pool size keeps connections warm across bore tunnel
+
+            // Transaction Defaults
             isAutoCommit = false
-            transactionIsolation = "TRANSACTION_REPEATABLE_READ"
-            validate()
+            transactionIsolation = "TRANSACTION_READ_COMMITTED" // PostgreSQL default (lower overhead)
+
+            // Tunnel Resilience & Keep-Alives
+            keepaliveTime = 30000 // 30s TCP heartbeat prevents bore tunnel timeout
+            maxLifetime = 1800000 // 30 minutes max age per connection
+            connectionTimeout = 10000 // Fail fast (10s) instead of hanging the UI for 30s
+            validationTimeout = 3000 // 3s validation check timeout
+
+            // PostgreSQL Performance Driver Options
+            addDataSourceProperty("reWriteBatchedInserts", "true")
+            addDataSourceProperty("cachePrepStmts", "true")
+            addDataSourceProperty("prepStmtCacheSize", "250")
+            addDataSourceProperty("prepStmtCacheSqlLimit", "2048")
         }
 
         return HikariDataSource(config)
