@@ -1,5 +1,13 @@
 /* js/teacher.js */
 
+// --- AUTH GUARD (Redirect unauthenticated access to login) ---
+(function checkTeacherAuth() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.replace('login.html');
+    }
+})();
+
 // Dynamic dropdown loading state helper
 function setDropdownLoading(selectEl, isLoading, text = 'Loading options...') {
     if (!selectEl) return;
@@ -17,6 +25,12 @@ function setDropdownLoading(selectEl, isLoading, text = 'Loading options...') {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.replace('login.html');
+        return;
+    }
+
     const dateInput = document.getElementById('date');
     if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
 
@@ -34,7 +48,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function getAuthHeader() {
     const token = localStorage.getItem('jwtToken');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
+    if (!token) {
+        window.location.replace('login.html');
+        return {};
+    }
+    return { 'Authorization': `Bearer ${token}` };
 }
 
 function logout(btnElement) {
@@ -54,7 +72,7 @@ function logout(btnElement) {
     }
     localStorage.removeItem('jwtToken');
     setTimeout(() => {
-        window.location.href = 'login.html';
+        window.location.replace('login.html');
     }, 300);
 }
 
@@ -76,6 +94,13 @@ async function loadBatches() {
         const response = await fetch('/api/admin/batches', {
             headers: { ...getAuthHeader() }
         });
+
+        if (response.status === 401) {
+            localStorage.removeItem('jwtToken');
+            window.location.replace('login.html');
+            return;
+        }
+
         if (response.ok) {
             const batches = await response.json();
             batchSelect.innerHTML = '<option value="">Select Batch</option>';
@@ -132,6 +157,13 @@ async function loadSubjectsForBatchAndSem(batch, sem) {
         const response = await fetch(`/api/admin/batches/${encodeURIComponent(batch)}/semester/${sem}/subjects`, {
             headers: { ...getAuthHeader() }
         });
+
+        if (response.status === 401) {
+            localStorage.removeItem('jwtToken');
+            window.location.replace('login.html');
+            return;
+        }
+
         if (response.ok) {
             const subjects = await response.json();
             subjectSelect.innerHTML = '<option value="">Select Subject</option>';
@@ -174,10 +206,22 @@ async function autoSelectSubjectFromTimetable() {
             headers: { ...getAuthHeader() }
         });
 
+        if (response.status === 401) {
+            localStorage.removeItem('jwtToken');
+            window.location.replace('login.html');
+            return;
+        }
+
         if (!response.ok) {
             response = await fetch(`/api/timetable?batch=${encodeURIComponent(batch)}&semester=${encodeURIComponent(semNumber)}&day=${dayOfWeek}`, {
                 headers: { ...getAuthHeader() }
             });
+
+            if (response.status === 401) {
+                localStorage.removeItem('jwtToken');
+                window.location.replace('login.html');
+                return;
+            }
         }
 
         if (!response.ok) return;
@@ -252,12 +296,25 @@ async function loadStudentRoster(batch, semester, subjectCode) {
             headers: { ...getAuthHeader() }
         });
 
+        if (response.status === 401) {
+            localStorage.removeItem('jwtToken');
+            window.location.replace('login.html');
+            return;
+        }
+
         if (response.ok) {
             students = await response.json();
         } else {
             const fallbackRes = await fetch(`/api/admin/batch-students?batch=${encodeURIComponent(batch)}`, {
                 headers: { ...getAuthHeader() }
             });
+
+            if (fallbackRes.status === 401) {
+                localStorage.removeItem('jwtToken');
+                window.location.replace('login.html');
+                return;
+            }
+
             if (fallbackRes.ok) students = await fallbackRes.json();
         }
     } catch (e) {
@@ -358,6 +415,12 @@ async function submitBulkAttendance(e) {
             },
             body: JSON.stringify(payload)
         });
+
+        if (response.status === 401) {
+            localStorage.removeItem('jwtToken');
+            window.location.replace('login.html');
+            return;
+        }
 
         const result = await response.json();
 

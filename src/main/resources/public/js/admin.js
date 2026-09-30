@@ -1,3 +1,11 @@
+// --- AUTH GUARD (Redirect unauthenticated access to login) ---
+(function checkAdminAuth() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.replace('login.html');
+    }
+})();
+
 // --- CONFIGURATION & TOKEN UTILITIES ---
 const TOKEN_KEY = 'jwtToken';
 
@@ -64,11 +72,17 @@ function setButtonLoading(btn, isLoading, loadingText = 'Processing...') {
 
 async function apiFetch(endpoint, method = 'GET', body = null) {
     const token = localStorage.getItem(TOKEN_KEY);
-    const headers = { 'Content-Type': 'application/json' };
 
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+    // Redirect immediately if token is missing
+    if (!token) {
+        window.location.replace('login.html');
+        return;
     }
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+    };
 
     const options = { method, headers };
     if (body) {
@@ -77,8 +91,12 @@ async function apiFetch(endpoint, method = 'GET', body = null) {
 
     const response = await fetch(endpoint, options);
 
+    // If backend returns 401 Unauthorized, clear invalid token & force login redirect
     if (response.status === 401) {
-        console.warn('API returned 401 Unauthorized. Accessing in passwordless/guest mode.');
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem('adminDepartment');
+        window.location.replace('login.html');
+        return;
     }
 
     const text = await response.text();
@@ -321,7 +339,7 @@ function initFormListeners() {
             localStorage.removeItem(TOKEN_KEY);
             localStorage.removeItem('adminDepartment');
             setTimeout(() => {
-                window.location.href = 'login.html';
+                window.location.replace('login.html');
             }, 300);
         });
     }
