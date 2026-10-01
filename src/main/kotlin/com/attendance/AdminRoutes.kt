@@ -245,52 +245,78 @@ fun Application.configureAdminRoutes() {
                 get("/students") {
                     val principal = call.principal<JWTPrincipal>()
                     val department = principal?.payload?.getClaim("department")?.asString() ?: "BCA"
-
                     val batchParam = call.request.queryParameters["batch"]
                     val semesterParam = call.request.queryParameters["semester"]?.toIntOrNull()
-
                     val studentsList = transaction {
+                        // Query 1: Fetch students matching criteria
                         var query = Users.selectAll().where {
                             (Users.department eq department) and (Users.role eq "student")
                         }
-
                         if (!batchParam.isNullOrBlank() && batchParam != "ALL") {
                             query = query.andWhere { Users.batch eq batchParam }
                         }
-
                         val studentRows = query.toList()
-
+                        if (studentRows.isEmpty()) {
+                            return@transaction emptyList<StudentResponse>()
+                        }
+                        val regNumbers = studentRows.map { it[Users.registerNumber] }
+                        // Query 2: If semester filter is applied, retrieve allowed subject codes in 1 query
+                        val allowedSubjectCodes = if (semesterParam != null) {
+                            val batches = studentRows.mapNotNull { it[Users.batch] }.distinct()
+                            BatchSubjects.select(BatchSubjects.subjectCode)
+                                .where { (BatchSubjects.batch inList batches) and (BatchSubjects.semester eq semesterParam) }
+                                .map { it[BatchSubjects.subjectCode] }
+                                .toSet()
+                        } else null
+                        // Query 3: Fetch attendance counts aggregated in a SINGLE query
+                        var attQuery = AttendanceRecords
+                            .select(
+                                AttendanceRecords.registerNumber,
+                                AttendanceRecords.status,
+                                AttendanceRecords.id.count()
+                            )
+                            .where { AttendanceRecords.registerNumber inList regNumbers }
+                        if (allowedSubjectCodes != null) {
+                            if (allowedSubjectCodes.isEmpty()) {
+                                // No subjects mapped for this semester -> attendance is 0%
+                                return@transaction studentRows.map { row ->
+                                    StudentResponse(
+                                        registerNumber = row[Users.registerNumber],
+                                        name = row[Users.name],
+                                        department = row[Users.department],
+                                        batch = row[Users.batch] ?: "N/A",
+                                        attendancePercentage = 0.0
+                                    )
+                                }
+                            }
+                            attQuery = attQuery.andWhere { AttendanceRecords.subjectCode inList allowedSubjectCodes }
+                        }
+                        // Aggregate statistics in memory from ONE SQL GROUP BY
+                        val statsMap = mutableMapOf<String, Pair<Long, Long>>() // regNum -> (total, present)
+                        attQuery.groupBy(AttendanceRecords.registerNumber, AttendanceRecords.status)
+                            .forEach { row ->
+                                val reg = row[AttendanceRecords.registerNumber]
+                                val status = row[AttendanceRecords.status]
+                                val count = row[AttendanceRecords.id.count()]
+                                val current = statsMap.getOrDefault(reg, Pair(0L, 0L))
+                                val isPresent = status == "P" || status == "PRESENT"
+                                statsMap[reg] = Pair(
+                                    current.first + count,
+                                    current.second + (if (isPresent) count else 0L)
+                                )
+                            }
+                        // O(N) in-memory response mapping
                         studentRows.map { row ->
                             val regNum = row[Users.registerNumber]
-                            val studentBatch = row[Users.batch] ?: ""
-
-                            val targetSubjectCodes = if (semesterParam != null && studentBatch.isNotBlank()) {
-                                BatchSubjects.select(BatchSubjects.subjectCode)
-                                    .where { (BatchSubjects.batch eq studentBatch) and (BatchSubjects.semester eq semesterParam) }
-                                    .map { it[BatchSubjects.subjectCode] }
-                            } else {
-                                emptyList()
-                            }
-
-                            var recordsQuery = AttendanceRecords.selectAll()
-                                .where { AttendanceRecords.registerNumber eq regNum }
-
-                            if (targetSubjectCodes.isNotEmpty()) {
-                                recordsQuery = recordsQuery.andWhere { AttendanceRecords.subjectCode inList targetSubjectCodes }
-                            }
-
-                            val total = recordsQuery.count()
-                            val present = recordsQuery.andWhere {
-                                (AttendanceRecords.status eq "P") or (AttendanceRecords.status eq "PRESENT")
-                            }.count()
-
-                            val percentage = if (total > 0) ((present.toDouble() / total) * 100) else 0.0
-
+                            val stats = statsMap[regNum] ?: Pair(0L, 0L)
+                            val total = stats.first
+                            val present = stats.second
+                            val percentage = if (total > 0) ((present.toDouble() / total) * 100.0) else 0.0
                             StudentResponse(
                                 registerNumber = regNum,
                                 name = row[Users.name],
                                 department = row[Users.department],
-                                batch = studentBatch.ifBlank { "N/A" },
+                                batch = row[Users.batch] ?: "N/A",
                                 attendancePercentage = Math.round(percentage * 10.0) / 10.0
                             )
                         }
@@ -355,71 +381,62 @@ fun Application.configureAdminRoutes() {
                     val regNum = call.parameters["regNumber"]?.uppercase()
                         ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse("Reg Number required"))
                     val semesterParam = call.request.queryParameters["semester"]?.toIntOrNull()
-
                     val response = transaction {
                         val userRow = Users.selectAll().where { Users.registerNumber eq regNum }.firstOrNull()
                             ?: return@transaction null
-
                         val userBatch = userRow[Users.batch] ?: ""
-
                         val activeSubjects = if (semesterParam != null) {
                             BatchSubjects.innerJoin(Subjects, { BatchSubjects.subjectCode }, { Subjects.code })
                                 .select(Subjects.code, Subjects.name)
                                 .where { (BatchSubjects.batch eq userBatch) and (BatchSubjects.semester eq semesterParam) }
-                                .map { it[Subjects.code] to it[Subjects.name] }
+                                .associate { it[Subjects.code] to it[Subjects.name] }
                         } else {
                             AttendanceRecords.select(AttendanceRecords.subjectCode, AttendanceRecords.subjectName)
                                 .where { AttendanceRecords.registerNumber eq regNum }
                                 .groupBy(AttendanceRecords.subjectCode, AttendanceRecords.subjectName)
-                                .map { it[AttendanceRecords.subjectCode] to it[AttendanceRecords.subjectName] }
+                                .associate { it[AttendanceRecords.subjectCode] to (it[AttendanceRecords.subjectName] ?: it[AttendanceRecords.subjectCode]) }
                         }
-
-                        val subjectBreakdownList = mutableListOf<StudentSubjectAttendanceDTO>()
+                        // ONE single query aggregated by subjectCode and status
+                        var recordsQuery = AttendanceRecords
+                            .select(
+                                AttendanceRecords.subjectCode,
+                                AttendanceRecords.status,
+                                AttendanceRecords.id.count()
+                            )
+                            .where { AttendanceRecords.registerNumber eq regNum }
+                        if (semesterParam != null) {
+                            recordsQuery = recordsQuery.andWhere { AttendanceRecords.subjectCode inList activeSubjects.keys }
+                        }
+                        data class SubjCounts(var total: Long = 0, var present: Long = 0, var late: Long = 0)
+                        val breakdownMap = mutableMapOf<String, SubjCounts>()
+                        recordsQuery.groupBy(AttendanceRecords.subjectCode, AttendanceRecords.status).forEach { row ->
+                            val code = row[AttendanceRecords.subjectCode]
+                            val status = row[AttendanceRecords.status]
+                            val count = row[AttendanceRecords.id.count()]
+                            val entry = breakdownMap.getOrPut(code) { SubjCounts() }
+                            entry.total += count
+                            if (status == "P" || status == "PRESENT") entry.present += count
+                            if (status == "L" || status == "LATE") entry.late += count
+                        }
                         var totalAllClasses = 0L
                         var totalAllPresent = 0L
                         var totalAllLate = 0L
-
-                        activeSubjects.forEach { (code, name) ->
-                            val totalForSubj = AttendanceRecords.selectAll()
-                                .where { (AttendanceRecords.registerNumber eq regNum) and (AttendanceRecords.subjectCode eq code) }
-                                .count()
-
-                            val presentForSubj = AttendanceRecords.selectAll()
-                                .where {
-                                    (AttendanceRecords.registerNumber eq regNum) and
-                                            (AttendanceRecords.subjectCode eq code) and
-                                            ((AttendanceRecords.status eq "P") or (AttendanceRecords.status eq "PRESENT"))
-                                }
-                                .count()
-
-                            val lateForSubj = AttendanceRecords.selectAll()
-                                .where {
-                                    (AttendanceRecords.registerNumber eq regNum) and
-                                            (AttendanceRecords.subjectCode eq code) and
-                                            ((AttendanceRecords.status eq "L") or (AttendanceRecords.status eq "LATE"))
-                                }
-                                .count()
-
-                            val perc = if (totalForSubj > 0) Math.round((presentForSubj.toDouble() / totalForSubj) * 100.0 * 10.0) / 10.0 else 0.0
-
-                            totalAllClasses += totalForSubj
-                            totalAllPresent += presentForSubj
-                            totalAllLate += lateForSubj
-
-                            subjectBreakdownList.add(
-                                StudentSubjectAttendanceDTO(
-                                    subjectCode = code,
-                                    subjectName = name,
-                                    totalClasses = totalForSubj,
-                                    attendedClasses = presentForSubj,
-                                    lateClasses = lateForSubj,
-                                    percentage = perc
-                                )
+                        val subjectBreakdownList = activeSubjects.map { (code, name) ->
+                            val counts = breakdownMap[code] ?: SubjCounts()
+                            totalAllClasses += counts.total
+                            totalAllPresent += counts.present
+                            totalAllLate += counts.late
+                            val perc = if (counts.total > 0) Math.round((counts.present.toDouble() / counts.total) * 1000.0) / 10.0 else 0.0
+                            StudentSubjectAttendanceDTO(
+                                subjectCode = code,
+                                subjectName = name,
+                                totalClasses = counts.total,
+                                attendedClasses = counts.present,
+                                lateClasses = counts.late,
+                                percentage = perc
                             )
                         }
-
-                        val overallPerc = if (totalAllClasses > 0) Math.round((totalAllPresent.toDouble() / totalAllClasses) * 100.0 * 10.0) / 10.0 else 0.0
-
+                        val overallPerc = if (totalAllClasses > 0) Math.round((totalAllPresent.toDouble() / totalAllClasses) * 1000.0) / 10.0 else 0.0
                         StudentDetailResponse(
                             registerNumber = userRow[Users.registerNumber],
                             name = userRow[Users.name],
@@ -438,7 +455,6 @@ fun Application.configureAdminRoutes() {
                             subjectBreakdown = subjectBreakdownList
                         )
                     }
-
                     if (response != null) {
                         call.respond(HttpStatusCode.OK, response)
                     } else {

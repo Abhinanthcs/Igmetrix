@@ -22,6 +22,10 @@ object Teachers : Table("teachers") {
     val password = varchar("password", 255)
 
     override val primaryKey = PrimaryKey(teacherId)
+
+    init {
+        index("idx_teachers_dept", false, department)
+    }
 }
 
 object Users : Table("users") {
@@ -38,6 +42,12 @@ object Users : Table("users") {
     val applicationNumber = varchar("application_number", 50).nullable()
 
     override val primaryKey = PrimaryKey(id)
+
+    init {
+        // High-frequency lookup indexes
+        index("idx_users_dept_role_batch", false, department, role, batch)
+        index("idx_users_reg_dept", false, registerNumber, department)
+    }
 }
 
 object AttendanceRecords : Table("attendance_records") {
@@ -51,6 +61,14 @@ object AttendanceRecords : Table("attendance_records") {
     val status = varchar("status", 10)
 
     override val primaryKey = PrimaryKey(id)
+
+    init {
+        // Critical indexes to resolve sequential table scans
+        index("idx_att_reg_status", false, registerNumber, status)
+        index("idx_att_reg_subj", false, registerNumber, subjectCode)
+        index("idx_att_dept_date_hour", false, department, date, hour)
+        index("idx_att_date_hour_subj", false, date, hour, subjectCode)
+    }
 }
 
 object Batches : Table("batches") {
@@ -60,6 +78,10 @@ object Batches : Table("batches") {
     val studentCount = integer("student_count").default(0)
 
     override val primaryKey = PrimaryKey(id)
+
+    init {
+        index("idx_batches_dept", false, department)
+    }
 }
 
 object Subjects : Table("subjects") {
@@ -71,6 +93,10 @@ object Subjects : Table("subjects") {
     val groupCode = varchar("group_code", 50).nullable()
 
     override val primaryKey = PrimaryKey(id)
+
+    init {
+        index("idx_subjects_dept_type", false, department, subjectType)
+    }
 }
 
 object BatchSemesters : Table("batch_semesters") {
@@ -82,7 +108,6 @@ object BatchSemesters : Table("batch_semesters") {
     override val primaryKey = PrimaryKey(id)
 }
 
-// Maps individual students to their chosen elective subject within a group code slot
 object StudentElectiveMappings : Table("student_elective_mappings") {
     val id = integer("id").autoIncrement()
     val registerNumber = varchar("register_number", 50).references(Users.registerNumber, onDelete = ReferenceOption.CASCADE)
@@ -94,8 +119,8 @@ object StudentElectiveMappings : Table("student_elective_mappings") {
     override val primaryKey = PrimaryKey(id)
 
     init {
-        // Strict constraint: Single student choice per group slot in a batch/semester
         uniqueIndex("unique_student_group_slot", registerNumber, batch, semester, groupCode)
+        index("idx_elective_lookup", false, batch, semester, groupCode, subjectCode)
     }
 }
 
@@ -110,6 +135,7 @@ object BatchSubjects : Table("batch_subjects") {
 
     init {
         uniqueIndex("unique_batch_sem_subject", batch, semester, subjectCode)
+        index("idx_batch_sem", false, batch, semester)
     }
 }
 

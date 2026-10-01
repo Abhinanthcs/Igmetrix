@@ -160,8 +160,16 @@ function initNavigation() {
             }
 
             if (targetTab === 'attendance-logs') {
-                populateSubjectFilter().then(() => fetchAttendanceLogs());
-            }
+                        fetchAttendanceLogs();
+                    } else if (targetTab === 'students' && allStudentsCache.length === 0) {
+                        fetchStudents();
+                    } else if (targetTab === 'teachers') {
+                        fetchTeachers();
+                    } else if (targetTab === 'batches') {
+                        fetchBatches();
+                    } else if (targetTab === 'assigned-subjects') {
+                        fetchAssignedSubjects();
+                    }
 
             if (targetTab === 'subjects' || targetTab === 'subject-manager') {
                 if (typeof window.fetchWeeklyMatrix === "function") {
@@ -265,15 +273,16 @@ function requestConfirmation({ title, message, onConfirm }) {
 
 // STRATEGY 2: Pre-fetch & Memory Cache Initializer
 async function loadDashboardData() {
-    await Promise.allSettled([
-        fetchStudents(),
-        fetchBatches(),
-        fetchTeachers(),
-        fetchPendingLogs(),
-        fetchSubjects(),
-        fetchAssignedSubjects()
-    ]);
-    await populateSubjectFilter();
+    // Stage 1: Load only what is strictly necessary to populate filter controls
+    try {
+        await Promise.all([
+            fetchBatches(),
+            fetchSubjects()
+        ]);
+        await populateSubjectFilter();
+    } catch (err) {
+        console.error('Initialization error:', err);
+    }
 }
 
 function initFormListeners() {

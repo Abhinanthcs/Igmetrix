@@ -109,6 +109,30 @@ fun Route.configureStudentRoutes() {
                 call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid check-in details or request format"))
             }
         }
+        get("/student/semesters") {
+            val principal = call.principal<JWTPrincipal>()
+            val registerNum = principal?.payload?.getClaim("registerNumber")?.asString()
+            if (registerNum == null) {
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid token context"))
+                return@get
+            }
+            val semesters = transaction {
+                val studentBatch = Users.selectAll()
+                    .where { Users.registerNumber eq registerNum }
+                    .map { it[Users.batch] }
+                    .singleOrNull()
+                if (studentBatch != null) {
+                    BatchSubjects.select(BatchSubjects.semester)
+                        .where { BatchSubjects.batch eq studentBatch }
+                        .withDistinct()
+                        .orderBy(BatchSubjects.semester to org.jetbrains.exposed.sql.SortOrder.ASC)
+                        .map { it[BatchSubjects.semester] }
+                } else {
+                    listOf(1, 2, 3, 4, 5, 6)
+                }
+            }
+            call.respond(HttpStatusCode.OK, semesters)
+        }
 
         // GET Attendance History for the Authenticated Student
         get("/student/history") {
