@@ -12,22 +12,38 @@ let filterState = {
     sortOrder: 'DESC'
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-    const token = localStorage.getItem('jwtToken');
-
-    if (!token) {
-        window.location.href = 'login.html';
-        return;
+// Dynamic dropdown loading state helper
+function setDropdownLoading(selectEl, isLoading, text = 'Loading options...') {
+    if (!selectEl) return;
+    if (isLoading) {
+        selectEl.dataset.originalContent = selectEl.innerHTML;
+        selectEl.disabled = true;
+        selectEl.innerHTML = `<option value="" disabled selected>⏳ ${text}</option>`;
+    } else {
+        selectEl.disabled = false;
+        if (selectEl.dataset.originalContent) {
+            selectEl.innerHTML = selectEl.dataset.originalContent;
+            delete selectEl.dataset.originalContent;
+        }
     }
+}
 
+document.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('jwtToken') || '';
     initSemesterAndLoad(token);
 });
 
 async function initSemesterAndLoad(token) {
     const semSelect = document.getElementById('semesterSelect');
 
+    if (semSelect) {
+        setDropdownLoading(semSelect, true, 'Loading Semesters...');
+    }
+
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
     try {
-        const res = await fetch('/student/semesters', { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await fetch('/student/semesters', { headers });
         if (res.ok) {
             const data = await res.json();
             populateSemesterOptions(Array.isArray(data) && data.length > 0 ? data : undefined);
@@ -36,13 +52,15 @@ async function initSemesterAndLoad(token) {
         }
     } catch (e) {
         populateSemesterOptions();
+    } finally {
+        if (semSelect) semSelect.disabled = false;
     }
 
     if (semSelect) {
         semSelect.addEventListener('change', (e) => {
             const semester = e.target.value || 'ALL';
             filterState.semester = semester;
-            const tokenNow = localStorage.getItem('jwtToken');
+            const tokenNow = localStorage.getItem('jwtToken') || '';
             loadSummary(tokenNow, semester);
             loadHistory(tokenNow, semester);
         });
@@ -58,7 +76,6 @@ function populateSemesterOptions(semesters = []) {
     const select = document.getElementById('semesterSelect');
     if (!select) return;
 
-    // Responsive class stack: adjusts font-size, width, padding, and ensures options fit mobile screens
     select.className = 'w-auto max-w-[130px] sm:max-w-none bg-slate-800 text-slate-100 border border-slate-700 text-[11px] sm:text-xs font-semibold rounded-md px-2 py-1 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer truncate';
 
     select.innerHTML = '';
@@ -79,29 +96,30 @@ function populateSemesterOptions(semesters = []) {
 async function loadSummary(token, semester = 'ALL') {
     try {
         const url = `/student/summary${semester && semester !== 'ALL' ? `?semester=${encodeURIComponent(semester)}` : ''}`;
-        const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const response = await fetch(url, { headers });
 
         if (response.status === 401) {
-            logout();
+            console.warn('Student summary endpoint returned 401 Unauthorized.');
             return;
         }
 
         const data = await response.json();
 
-        // 1. Fetch Student Name with fallbacks for different backend DTO structures
         const fetchedName = data.studentName || data.name || data.user?.name || data.username || 'Student';
         const nameElement = document.getElementById('studentWelcomeName');
         if (nameElement) {
             nameElement.innerText = fetchedName;
         }
 
-        // 2. Populate Overview Stats
-        document.getElementById('regNum').innerText = data.registerNumber || '-';
-        document.getElementById('totalClasses').innerText = data.totalClasses || 0;
-        document.getElementById('presentCount').innerText = data.presentCount || 0;
-        document.getElementById('absentCount').innerText = data.absentCount || 0;
+        const regEl = document.getElementById('regNum');
+        if (regEl) regEl.innerText = data.registerNumber || '-';
+        const totEl = document.getElementById('totalClasses');
+        if (totEl) totEl.innerText = data.totalClasses || 0;
+        const presEl = document.getElementById('presentCount');
+        if (presEl) presEl.innerText = data.presentCount || 0;
+        const absEl = document.getElementById('absentCount');
+        if (absEl) absEl.innerText = data.absentCount || 0;
 
         const overallPerc = data.attendancePercentage || 0;
         const percElement = document.getElementById('attendancePerc');
@@ -135,14 +153,21 @@ async function loadSummary(token, semester = 'ALL') {
 }
 
 async function loadHistory(token, semester = 'ALL') {
+    const tbody = document.getElementById('historyTableBody');
+    if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 font-mono font-bold animate-pulse">Loading attendance history...</td></tr>`;
+    }
+
     try {
         const url = `/student/history${semester && semester !== 'ALL' ? `?semester=${encodeURIComponent(semester)}` : ''}`;
-        const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const response = await fetch(url, { headers });
 
         if (response.status === 401) {
-            logout();
+            console.warn('Student history endpoint returned 401 Unauthorized.');
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 italic">Please sign in to view your detailed history.</td></tr>`;
+            }
             return;
         }
 
@@ -339,10 +364,17 @@ function renderDetailedHistoryView(thead, tbody, filtered) {
     }
 
     filtered.forEach(item => {
-        const isPresent = item.status === 'P' || item.status === 'PRESENT';
-        const badgeClass = isPresent
-            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
-            : 'bg-rose-50 text-rose-700 border-rose-200/80';
+        const rawStatus = String(item.status || '').toUpperCase();
+        let badgeClass = 'bg-rose-50 text-rose-700 border-rose-200/80';
+        let statusLabel = 'A';
+
+        if (rawStatus === 'P' || rawStatus === 'PRESENT') {
+            badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200/80';
+            statusLabel = 'P';
+        } else if (rawStatus === 'L' || rawStatus === 'LATE') {
+            badgeClass = 'bg-amber-50 text-amber-700 border-amber-200/80';
+            statusLabel = 'L';
+        }
 
         const row = document.createElement('tr');
         row.className = 'hover:bg-slate-50/80 transition-colors';
@@ -353,7 +385,7 @@ function renderDetailedHistoryView(thead, tbody, filtered) {
             <td class="px-4 py-3 text-slate-700 font-semibold">${escapeHtml(String(item.hour))}</td>
             <td class="px-4 py-3">
                 <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] font-bold rounded border ${badgeClass}">
-                    ${isPresent ? 'P' : 'A'}
+                    ${statusLabel}
                 </span>
             </td>
         `;
@@ -400,10 +432,12 @@ function renderMatrixHistoryView(thead, tbody, filtered) {
         for (let h = 1; h <= 5; h++) {
             const record = dayHours[h];
             const status = record ? String(record.status || '').toUpperCase() : '';
+
             const isPresent = status === 'P' || status === 'PRESENT';
+            const isLate = status === 'L' || status === 'LATE';
             const isAbsent = status === 'A' || status === 'ABSENT';
 
-            if (!record || (!isPresent && !isAbsent)) {
+            if (!record || (!isPresent && !isLate && !isAbsent)) {
                 hourCellsHtml += `
                     <td class="px-4 py-3 text-center">
                         <span class="inline-flex items-center justify-center w-7 h-6 text-[11px] text-slate-300 font-medium rounded border border-slate-100 bg-slate-50/50">-</span>
@@ -411,10 +445,16 @@ function renderMatrixHistoryView(thead, tbody, filtered) {
                 `;
             } else {
                 const tooltipText = `${escapeHtml(record.subjectCode)} - ${escapeHtml(record.subjectName)}`;
-                const badgeClass = isPresent
-                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80'
-                    : 'text-rose-700 bg-rose-50 border-rose-200/80';
-                const label = isPresent ? 'P' : 'A';
+                let badgeClass = 'text-rose-700 bg-rose-50 border-rose-200/80';
+                let label = 'A';
+
+                if (isPresent) {
+                    badgeClass = 'text-emerald-700 bg-emerald-50 border-emerald-200/80';
+                    label = 'P';
+                } else if (isLate) {
+                    badgeClass = 'text-amber-700 bg-amber-50 border-amber-200/80';
+                    label = 'L';
+                }
 
                 hourCellsHtml += `
                     <td class="px-4 py-3 text-center" title="${tooltipText}">
@@ -540,22 +580,27 @@ function renderSubjectBreakdown(history) {
             subjectMap[code] = {
                 name: item.subjectName || code,
                 total: 0,
-                present: 0
+                present: 0,
+                late: 0
             };
         }
         subjectMap[code].total += 1;
-        if (item.status === 'P' || item.status === 'PRESENT') {
+
+        const rawStatus = String(item.status || '').toUpperCase();
+        if (rawStatus === 'P' || rawStatus === 'PRESENT') {
             subjectMap[code].present += 1;
+        } else if (rawStatus === 'L' || rawStatus === 'LATE') {
+            subjectMap[code].late += 1;
         }
     });
 
     container.innerHTML = Object.keys(subjectMap).map(code => {
         const sub = subjectMap[code];
+        // Late counts as absent, so percentage is strictly Present / Total
         const perc = sub.total > 0 ? Math.round((sub.present / sub.total) * 100) : 0;
 
         let barColor = 'bg-emerald-500';
         let badgeStyle = 'bg-emerald-100 text-emerald-800';
-        // Explicitly set green left border for >= 75%
         let borderStyle = 'border-l-4 border-l-emerald-500 border-slate-200/80';
 
         if (perc < 65) {
@@ -581,9 +626,9 @@ function renderSubjectBreakdown(history) {
                 <div class="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
                     <div class="${barColor} h-2 rounded-full transition-all duration-300" style="width: ${perc}%"></div>
                 </div>
-                <div class="flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                    <span class="group-hover:text-indigo-600 transition-colors">View Details &rarr;</span>
-                    <span>${sub.present} / ${sub.total} Classes Attended</span>
+                <div class="flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                    <span>${sub.present} Attended • <span class="text-amber-600 font-bold">${sub.late} Late</span> / ${sub.total} Total</span>
+                    <span class="group-hover:text-indigo-600 transition-colors">Details &rarr;</span>
                 </div>
             </div>
         `;
@@ -635,9 +680,25 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
-function logout() {
+function logout(btnElement) {
+    const btn = btnElement || document.getElementById('logout-btn') || document.querySelector('.signout-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+        btn.innerHTML = `
+            <span class="inline-flex items-center justify-center gap-2">
+                <svg class="animate-spin h-3.5 w-3.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Signing Out...</span>
+            </span>
+        `;
+    }
     localStorage.removeItem('jwtToken');
-    window.location.href = 'login.html';
+    setTimeout(() => {
+        window.location.href = 'login.html';
+    }, 300);
 }
 
 function exportStudentHistoryCSV() {
@@ -649,14 +710,21 @@ function exportStudentHistoryCSV() {
     const regNum = document.getElementById('regNum')?.innerText || 'Student';
     const headers = ['Log ID', 'Subject Code', 'Subject Name', 'Date', 'Hour', 'Status'];
 
-    const rows = allHistoryCache.map(item => [
-        item.id,
-        item.subjectCode || 'N/A',
-        item.subjectName || 'N/A',
-        item.date,
-        item.hour,
-        (item.status === 'P' || item.status === 'PRESENT') ? 'PRESENT' : 'ABSENT'
-    ]);
+    const rows = allHistoryCache.map(item => {
+        const raw = String(item.status || '').toUpperCase();
+        let statusStr = 'ABSENT';
+        if (raw === 'P' || raw === 'PRESENT') statusStr = 'PRESENT';
+        if (raw === 'L' || raw === 'LATE') statusStr = 'LATE';
+
+        return [
+            item.id,
+            item.subjectCode || 'N/A',
+            item.subjectName || 'N/A',
+            item.date,
+            item.hour,
+            statusStr
+        ];
+    });
 
     const filename = `Attendance_History_${regNum}_${new Date().toISOString().split('T')[0]}.csv`;
     downloadCSV(filename, headers, rows);

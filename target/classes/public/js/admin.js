@@ -1,3 +1,11 @@
+// --- AUTH GUARD (Redirect unauthenticated access to login) ---
+(function checkAdminAuth() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.replace('login.html');
+    }
+})();
+
 // --- CONFIGURATION & TOKEN UTILITIES ---
 const TOKEN_KEY = 'jwtToken';
 
@@ -20,13 +28,61 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+// STRATEGY 1: Loading state helper for dropdowns
+function setDropdownLoading(selectEl, isLoading, loadingText = 'Loading options...') {
+    if (!selectEl) return;
+    if (isLoading) {
+        selectEl.dataset.originalContent = selectEl.innerHTML;
+        selectEl.disabled = true;
+        selectEl.innerHTML = `<option value="" disabled selected>⏳ ${loadingText}</option>`;
+    } else {
+        selectEl.disabled = false;
+        if (selectEl.dataset.originalContent) {
+            selectEl.innerHTML = selectEl.dataset.originalContent;
+            delete selectEl.dataset.originalContent;
+        }
+    }
+}
+
+// Loading state helper for form submit buttons
+function setButtonLoading(btn, isLoading, loadingText = 'Processing...') {
+    if (!btn) return;
+    if (isLoading) {
+        btn.dataset.originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+        btn.innerHTML = `
+            <span class="inline-flex items-center justify-center gap-2">
+                <svg class="animate-spin h-3.5 w-3.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>${loadingText}</span>
+            </span>
+        `;
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        if (btn.dataset.originalHtml) {
+            btn.innerHTML = btn.dataset.originalHtml;
+            delete btn.dataset.originalHtml;
+        }
+    }
+}
+
 async function apiFetch(endpoint, method = 'GET', body = null) {
     const token = localStorage.getItem(TOKEN_KEY);
-    const headers = { 'Content-Type': 'application/json' };
 
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+    // Redirect immediately if token is missing
+    if (!token) {
+        window.location.replace('login.html');
+        return;
     }
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+    };
 
     const options = { method, headers };
     if (body) {
@@ -35,11 +91,12 @@ async function apiFetch(endpoint, method = 'GET', body = null) {
 
     const response = await fetch(endpoint, options);
 
+    // If backend returns 401 Unauthorized, clear invalid token & force login redirect
     if (response.status === 401) {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem('adminDepartment');
-        window.location.href = '/login.html';
-        throw new Error('Unauthorized session. Redirecting to login.');
+        window.location.replace('login.html');
+        return;
     }
 
     const text = await response.text();
@@ -71,7 +128,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initDeptBadge() {
-    const dept = localStorage.getItem('adminDepartment') || 'DEPT_ADMIN';
+    let dept = localStorage.getItem('adminDepartment');
+    if (!dept) {
+        dept = 'BCA';
+        localStorage.setItem('adminDepartment', dept);
+    }
     const badge = document.getElementById('dept-badge');
     if (badge) badge.textContent = dept;
 }
@@ -99,8 +160,16 @@ function initNavigation() {
             }
 
             if (targetTab === 'attendance-logs') {
-                populateSubjectFilter().then(() => fetchAttendanceLogs());
-            }
+                        fetchAttendanceLogs();
+                    } else if (targetTab === 'students' && allStudentsCache.length === 0) {
+                        fetchStudents();
+                    } else if (targetTab === 'teachers') {
+                        fetchTeachers();
+                    } else if (targetTab === 'batches') {
+                        fetchBatches();
+                    } else if (targetTab === 'assigned-subjects') {
+                        fetchAssignedSubjects();
+                    }
 
             if (targetTab === 'subjects' || targetTab === 'subject-manager') {
                 if (typeof window.fetchWeeklyMatrix === "function") {
@@ -202,22 +271,26 @@ function requestConfirmation({ title, message, onConfirm }) {
     }
 }
 
+// STRATEGY 2: Pre-fetch & Memory Cache Initializer
 async function loadDashboardData() {
-    await Promise.all([
-        fetchStudents(),
-        fetchBatches(),
-        fetchTeachers(),
-        fetchPendingLogs(),
-        fetchSubjects(),
-        fetchAssignedSubjects()
-    ]);
-    await populateSubjectFilter();
+    // Stage 1: Load only what is strictly necessary to populate filter controls
+    try {
+        await Promise.all([
+            fetchBatches(),
+            fetchSubjects()
+        ]);
+        await populateSubjectFilter();
+    } catch (err) {
+        console.error('Initialization error:', err);
+    }
 }
 
 function initFormListeners() {
-    // Enroll New Student with 3 new fields
     document.getElementById('create-student-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        setButtonLoading(submitBtn, true, 'Registering...');
+
         const payload = {
             registerNumber: document.getElementById('modal-reg')?.value.trim(),
             name: document.getElementById('modal-name')?.value.trim(),
@@ -238,6 +311,8 @@ function initFormListeners() {
             fetchBatches();
         } catch (err) {
             showAlert(`Failed to register student: ${err.message}`, true);
+        } finally {
+            setButtonLoading(submitBtn, false);
         }
     });
 
@@ -251,22 +326,32 @@ function initFormListeners() {
             title: 'Execute Semester Rollover?',
             message: 'This action will clear active attendance tracking logs across your department to initialize a fresh cycle.',
             onConfirm: async () => {
+                const rolloverBtn = document.getElementById('rollover-btn');
+                setButtonLoading(rolloverBtn, true, 'Executing...');
                 try {
                     const res = await apiFetch('/api/admin/rollover-semester', 'POST');
                     showAlert(res.message || 'Semester rollover complete.');
                     fetchStudents();
                 } catch (err) {
                     showAlert(`Rollover failed: ${err.message}`, true);
+                } finally {
+                    setButtonLoading(rolloverBtn, false);
                 }
             }
         });
     });
 
-    document.getElementById('logout-btn')?.addEventListener('click', () => {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem('adminDepartment');
-        window.location.href = '/login.html';
-    });
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            setButtonLoading(logoutBtn, true, 'Signing Out...');
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem('adminDepartment');
+            setTimeout(() => {
+                window.location.replace('login.html');
+            }, 300);
+        });
+    }
 }
 
 // --- STUDENT DIRECTORY WITH CLICKABLE DETAILS ---
@@ -345,40 +430,70 @@ async function fetchStudentDetailWithSem() {
     try {
         const student = await apiFetch(`/api/admin/students/${encodeURIComponent(activeDetailRegNum)}/details?semester=${selectedSem}`, 'GET');
 
-        // Personal Info Inputs
-        document.getElementById('detail-student-name').textContent = student.name;
+        if (!student) return;
+
+        document.getElementById('detail-student-name').textContent = student.name || 'Student Profile';
         document.getElementById('detail-reg-sub').textContent = `${student.registerNumber} • ${student.department} (${student.batch})`;
 
-        document.getElementById('detail-input-name').value = student.name;
+        document.getElementById('detail-input-name').value = student.name || '';
         document.getElementById('detail-input-gender').value = student.gender || 'Male';
-        document.getElementById('detail-input-dob').value = student.dateOfBirth;
-        document.getElementById('detail-input-kreap').value = student.kreapPrn;
-        document.getElementById('detail-input-appno').value = student.applicationNumber;
-        document.getElementById('detail-input-phone').value = student.phoneNumber;
+        document.getElementById('detail-input-dob').value = student.dateOfBirth || '';
+        document.getElementById('detail-input-kreap').value = student.kreapPrn || 'N/A';
+        document.getElementById('detail-input-appno').value = student.applicationNumber || 'N/A';
+        document.getElementById('detail-input-phone').value = student.phoneNumber || 'N/A';
 
-        // Stats Row
-        document.getElementById('detail-total-classes').textContent = student.totalClasses;
-        document.getElementById('detail-present-classes').textContent = student.presentCount;
-        document.getElementById('detail-absent-classes').textContent = student.absentCount;
-        document.getElementById('detail-perc').textContent = `${student.attendancePercentage}%`;
+        // Extract numbers directly from Ktor DTO Response
+        const totalClasses = student.totalClasses || 0;
+        const presentCount = student.presentCount || 0;
+        const lateCount = student.lateCount || 0;
+        const absentCount = (student.absentCount !== undefined) ? student.absentCount : (totalClasses - presentCount);
 
-        // Subject Breakdown Table
+        document.getElementById('detail-total-classes').textContent = totalClasses;
+        document.getElementById('detail-present-classes').textContent = presentCount;
+
+        const lateEl = document.getElementById('detail-late-classes');
+        if (lateEl) lateEl.textContent = lateCount;
+
+        document.getElementById('detail-absent-classes').textContent = absentCount;
+        document.getElementById('detail-perc').textContent = `${student.attendancePercentage || 0}%`;
+
+        // Update table head if element exists
+        const thead = document.getElementById('detail-subject-table-head');
+        if (thead) {
+            thead.innerHTML = `
+                <tr>
+                    <th class="py-2.5 px-4 text-left">Subject Code</th>
+                    <th class="py-2.5 px-4 text-left">Subject Name</th>
+                    <th class="py-2.5 px-4 text-center">Attended</th>
+                    <th class="py-2.5 px-4 text-center">Late</th>
+                    <th class="py-2.5 px-4 text-center">Total</th>
+                    <th class="py-2.5 px-4 text-right">Attendance %</th>
+                </tr>
+            `;
+        }
+
         const tbody = document.getElementById('detail-subject-table-body');
         if (tbody) {
             if (!student.subjectBreakdown || student.subjectBreakdown.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-slate-400 italic">No subjects mapped for Semester ${selectedSem}.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-400 italic">No subjects mapped for Semester ${selectedSem}.</td></tr>`;
             } else {
-                tbody.innerHTML = student.subjectBreakdown.map(sub => `
-                    <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="py-2.5 px-4 font-mono font-bold text-slate-800">${escapeHtml(sub.subjectCode)}</td>
-                        <td class="py-2.5 px-4 font-medium text-slate-800">${escapeHtml(sub.subjectName)}</td>
+                tbody.innerHTML = student.subjectBreakdown.map(sub => {
+                    const subAttended = sub.attendedClasses !== undefined ? sub.attendedClasses : (sub.presentCount || 0);
+                    const subLate = sub.lateClasses !== undefined ? sub.lateClasses : (sub.lateCount || 0);
+                    const subTotal = sub.totalClasses || 0;
+                    const subPerc = sub.percentage !== undefined ? sub.percentage : 0;
 
-                        <!-- UPDATED: Changed text to bold text-slate-900 (Black) -->
-                        <td class="py-2.5 px-4 text-center font-mono font-bold text-slate-900">${sub.attendedClasses} / ${sub.totalClasses}</td>
-
-                        <td class="py-2.5 px-4 text-right font-mono font-bold ${sub.percentage >= 75 ? 'text-emerald-600' : 'text-rose-600'}">${sub.percentage}%</td>
-                    </tr>
-                `).join('');
+                    return `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="py-2.5 px-4 font-mono font-bold text-slate-800">${escapeHtml(sub.subjectCode)}</td>
+                            <td class="py-2.5 px-4 font-medium text-slate-800">${escapeHtml(sub.subjectName)}</td>
+                            <td class="py-2.5 px-4 text-center font-mono font-bold text-emerald-600">${subAttended}</td>
+                            <td class="py-2.5 px-4 text-center font-mono font-bold text-amber-600">${subLate}</td>
+                            <td class="py-2.5 px-4 text-center font-mono font-bold text-slate-900">${subTotal}</td>
+                            <td class="py-2.5 px-4 text-right font-mono font-bold ${subPerc >= 75 ? 'text-emerald-600' : 'text-rose-600'}">${subPerc}%</td>
+                        </tr>
+                    `;
+                }).join('');
             }
         }
     } catch (err) {
@@ -386,7 +501,6 @@ async function fetchStudentDetailWithSem() {
     }
 }
 
-// Edit Toggle Operations
 function toggleEditMode() {
     const inputs = ['detail-input-name', 'detail-input-gender', 'detail-input-dob', 'detail-input-kreap', 'detail-input-appno', 'detail-input-phone'];
     inputs.forEach(id => {
@@ -411,6 +525,9 @@ document.getElementById('edit-student-form')?.addEventListener('submit', async (
     e.preventDefault();
     if (!activeDetailRegNum) return;
 
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    setButtonLoading(submitBtn, true, 'Saving...');
+
     const payload = {
         registerNumber: activeDetailRegNum,
         name: document.getElementById('detail-input-name')?.value.trim(),
@@ -430,12 +547,16 @@ document.getElementById('edit-student-form')?.addEventListener('submit', async (
         fetchStudents();
     } catch (err) {
         showAlert(`Failed to update student: ${err.message}`, true);
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
 });
 
 // --- REMAINING MANAGEMENT MODULE HANDLERS ---
 async function handleCreateBatch(event) {
     event.preventDefault();
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+
     const startYearInput = document.getElementById('batch-start-year')?.value.trim() || '';
     const endYearInput = document.getElementById('batch-end-year')?.value.trim() || '';
 
@@ -447,6 +568,8 @@ async function handleCreateBatch(event) {
         return;
     }
 
+    setButtonLoading(submitBtn, true, 'Adding...');
+
     try {
         const res = await apiFetch('/api/admin/create-batch', 'POST', { startYear, endYear });
         showAlert(res.message || 'Batch created successfully.');
@@ -454,11 +577,14 @@ async function handleCreateBatch(event) {
         fetchBatches();
     } catch (err) {
         showAlert(`Failed to create batch: ${err.message}`, true);
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
 }
 
 async function handleCreateTeacher(event) {
     event.preventDefault();
+    const submitBtn = event.target.querySelector('button[type="submit"]');
 
     const idInput = document.getElementById('teacher-id')?.value.trim() || '';
     const nameInput = document.getElementById('teacher-name')?.value.trim() || '';
@@ -481,6 +607,8 @@ async function handleCreateTeacher(event) {
         phoneNumber: phoneInput
     };
 
+    setButtonLoading(submitBtn, true, 'Adding...');
+
     try {
         const res = await apiFetch('/api/admin/create-teacher', 'POST', payload);
         showAlert(res.message || 'Teacher created successfully.');
@@ -488,11 +616,15 @@ async function handleCreateTeacher(event) {
         fetchTeachers();
     } catch (err) {
         showAlert(`Failed to create teacher: ${err.message}`, true);
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
 }
 
 async function handleCreateSubject(event) {
     event.preventDefault();
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+
     const typeVal = document.getElementById('subject-type')?.value || 'LOCAL';
     const groupCodeVal = document.getElementById('subject-group-code')?.value.trim().toUpperCase();
 
@@ -503,6 +635,8 @@ async function handleCreateSubject(event) {
         groupCode: typeVal === 'GLOBAL' ? groupCodeVal : null
     };
 
+    setButtonLoading(submitBtn, true, 'Adding...');
+
     try {
         const res = await apiFetch('/api/admin/subjects', 'POST', payload);
         showAlert(res.message || 'Subject added to catalog.');
@@ -512,16 +646,22 @@ async function handleCreateSubject(event) {
         await populateSubjectFilter();
     } catch (err) {
         showAlert(`Failed to create subject: ${err.message}`, true);
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
 }
 
 async function handleAssignSubject(event) {
     event.preventDefault();
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+
     const batch = document.getElementById('assign-batch-select')?.value;
     const semester = parseInt(document.getElementById('assign-semester-select')?.value, 10);
     const selectedValue = document.getElementById('assign-subject-select')?.value;
 
     if (!selectedValue) return;
+
+    setButtonLoading(submitBtn, true, 'Linking...');
 
     try {
         let res;
@@ -537,6 +677,8 @@ async function handleAssignSubject(event) {
         await populateSubjectFilter();
     } catch (err) {
         showAlert(`Failed to assign subject: ${err.message}`, true);
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
 }
 
@@ -719,6 +861,8 @@ async function fetchMasterElectivePool() {
         return;
     }
 
+    tbody.innerHTML = `<tr><td colspan="100%" class="py-6 text-center text-slate-400 font-mono font-bold animate-pulse">Loading elective mapping choices...</td></tr>`;
+
     try {
         const currentGroup = globalGroupsCache.find(g => g.groupCode === groupCode);
         const groupSubjects = currentGroup ? currentGroup.subjects : [];
@@ -800,9 +944,12 @@ async function toggleStudentElectiveChoice(regNo, batch, semester, groupCode, su
     }
 }
 
+// STRATEGY 1 & 2 COMBINED: Fast Memory Lookup + Dropdown Loading Indicators
 async function populateSubjectFilter() {
     const subjectSelect = document.getElementById('log-filter-subject');
     if (!subjectSelect) return;
+
+    setDropdownLoading(subjectSelect, true, 'Updating subject filter...');
 
     const selectedBatch = document.getElementById('log-filter-batch')?.value || 'ALL';
     const selectedSemester = document.getElementById('log-filter-semester')?.value || 'ALL';
@@ -850,6 +997,9 @@ async function populateSubjectFilter() {
         }
     } catch (err) {
         console.error('Failed to populate subject filter:', err);
+        subjectSelect.innerHTML = '<option value="ALL">All Subjects</option>';
+    } finally {
+        subjectSelect.disabled = false;
     }
 }
 
@@ -1001,7 +1151,7 @@ async function viewBatchRoster(batchName) {
     if (!modal || !tbody) return;
 
     if (title) title.textContent = `Students in Batch ${batchName}`;
-    tbody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-400 italic">Loading students...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-400 italic font-mono animate-pulse">Loading students...</td></tr>`;
     modal.classList.remove('hidden');
 
     if (closeBtn) closeBtn.onclick = () => modal.classList.add('hidden');
@@ -1173,8 +1323,11 @@ function confirmDeleteTeacher(teacherId) {
     });
 }
 
+// --- ATTENDANCE LOGS & PIVOT MATRIX ---
 async function fetchAttendanceLogs() {
-    const dateMode = document.getElementById('log-date-mode')?.value || 'ALL';
+    const dateModeEl = document.getElementById('log-date-mode');
+    const dateMode = dateModeEl ? dateModeEl.value : 'ALL';
+
     const dateVal = document.getElementById('log-filter-date')?.value;
     const startDateVal = document.getElementById('log-filter-start-date')?.value;
     const endDateVal = document.getElementById('log-filter-end-date')?.value;
@@ -1200,11 +1353,15 @@ async function fetchAttendanceLogs() {
     if (hourVal && hourVal !== 'ALL') queryParams.append('hour', hourVal);
     if (statusVal && statusVal !== 'ALL') queryParams.append('status', statusVal);
 
+    const tbody = document.getElementById('attendance-logs-table-body');
+    if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="100%" class="py-6 text-center text-slate-400 font-mono font-bold animate-pulse">Fetching attendance logs...</td></tr>`;
+    }
+
     try {
         const logs = await apiFetch(`/api/admin/attendance-logs?${queryParams.toString()}`, 'GET');
         window.currentAttendanceLogs = logs || [];
 
-        const tbody = document.getElementById('attendance-logs-table-body');
         if (!tbody) return;
 
         if (!logs || logs.length === 0) {
@@ -1220,110 +1377,200 @@ async function fetchAttendanceLogs() {
 
 function renderPivotAttendanceTable(logs) {
     const tbody = document.getElementById('attendance-logs-table-body');
-    const table = tbody?.closest('table');
-    if (!tbody || !table) return;
+    const thead = document.getElementById('attendance-logs-table-head');
+    if (!tbody) return;
 
-    let thead = table.querySelector('thead');
-    if (!thead) {
-        thead = document.createElement('thead');
-        table.insertBefore(thead, tbody);
+    if (!Array.isArray(logs) || logs.length === 0) {
+        if (thead) thead.innerHTML = '';
+        tbody.innerHTML = `<tr><td colspan="100%" class="py-4 px-6 text-center text-slate-400 italic">No attendance records found matching filters.</td></tr>`;
+        return;
     }
+
+    const subjectNameCacheMap = new Map();
+    (window.assignedSubjectsCache || assignedSubjectsCache || []).forEach(item => {
+        if (item.subjectCode && item.subjectName) {
+            subjectNameCacheMap.set(item.subjectCode, item.subjectName);
+        }
+    });
 
     const studentsMap = new Map();
     const sessionsMap = new Map();
 
     logs.forEach(log => {
-        const reg = log.regNumber || log.registerNumber || log.studentId || 'N/A';
-        const name = log.studentName || log.name || 'N/A';
+        const reg = log.registerNumber || log.regNumber || log.studentId || 'N/A';
+        const name = log.name || log.studentName || 'N/A';
         const date = log.date || 'N/A';
-        const hour = log.hour || 1;
-        const subj = log.subjectCode || 'SUBJ';
+        const hour = log.hour ?? 1;
+        const subjCode = log.subjectCode || 'SUBJ';
 
-        const sessionKey = `${date}_H${hour}_${subj}`;
-        const sessionHeader = `(H${hour}/${subj})<br><span class="text-[10px] text-slate-400 font-mono font-normal">${date}</span>`;
+        const rawSubjName = log.subjectName || subjectNameCacheMap.get(subjCode) || subjCode;
+        const shortSubjName = rawSubjName.length > 12 ? rawSubjName.substring(0, 10) + '..' : rawSubjName;
+
+        const sessionKey = `${date}_H${hour}_${subjCode}`;
+
+        const headerLabel = `
+            <div class="relative group inline-block">
+                <div class="flex items-center justify-center gap-1">
+                    <span>(H${hour}/${escapeHtml(subjCode)})</span>
+                    <button onclick="deleteAttendanceSession('${date}', ${hour}, '${escapeHtml(subjCode)}')"
+                            title="Delete this hour session completely"
+                            class="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded transition-colors cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+                <span class="text-[11px] font-semibold text-indigo-600 block my-0.5 truncate max-w-[120px]" title="${escapeHtml(rawSubjName)}">${escapeHtml(shortSubjName)}</span>
+                <span class="text-[10px] font-normal text-slate-400 block">${date}</span>
+            </div>
+        `;
 
         if (!studentsMap.has(reg)) {
             studentsMap.set(reg, { reg, name, attendance: {} });
         }
         if (!sessionsMap.has(sessionKey)) {
-            sessionsMap.set(sessionKey, { header: sessionHeader, rawDate: date, rawHour: hour });
+            sessionsMap.set(sessionKey, { header: headerLabel, rawDate: date, rawHour: hour });
         }
 
-        let statusTag = 'A';
-        if (log.status === 'PRESENT' || log.status === 'P') statusTag = 'P';
-        else if (log.status === 'LATE' || log.status === 'L') statusTag = 'L';
+        const rawStatus = String(log.status).toUpperCase();
+        let formattedStatus = 'A';
+        if (rawStatus === 'PRESENT' || rawStatus === 'P') {
+            formattedStatus = 'P';
+        } else if (rawStatus === 'LATE' || rawStatus === 'L') {
+            formattedStatus = 'L';
+        }
 
         studentsMap.get(reg).attendance[sessionKey] = {
-            status: statusTag,
-            logId: log.id || log.attendanceId
+            logId: log.id,
+            status: formattedStatus
         };
     });
 
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
-        const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
+        const dateComp = new Date(b[1].rawDate) - new Date(a[1].rawDate);
         if (dateComp !== 0) return dateComp;
-        return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
+        return parseInt(b[1].rawHour, 10) - parseInt(a[1].rawHour, 10);
     });
 
     const sortedStudents = Array.from(studentsMap.values()).sort((a, b) => a.reg.localeCompare(b.reg));
 
-    thead.innerHTML = `
-        <tr class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-500 text-xs">
-            <th class="py-3 px-4 text-left">Register No</th>
-            <th class="py-3 px-4 text-left">Student Name</th>
-            ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[100px]">${session.header}</th>`).join('')}
-        </tr>
-    `;
+    if (thead) {
+        thead.innerHTML = `
+            <tr class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-600 text-xs">
+                <th class="py-3 px-4 text-left">REGISTER NO</th>
+                <th class="py-3 px-4 text-left">STUDENT NAME</th>
+                ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[130px] whitespace-nowrap align-top">${session.header}</th>`).join('')}
+            </tr>
+        `;
+    }
 
     tbody.innerHTML = sortedStudents.map(student => `
         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 text-xs font-medium">
             <td class="py-3 px-4 font-mono font-bold text-slate-800">${escapeHtml(student.reg)}</td>
-            <td class="py-3 px-4 text-slate-700">${escapeHtml(student.name)}</td>
+            <td class="py-3 px-4 text-slate-700 font-semibold uppercase">${escapeHtml(student.name)}</td>
             ${sortedSessions.map(([key, _]) => {
-        const record = student.attendance[key];
-        if (!record) {
-            return `<td class="py-3 px-4 text-center font-mono text-slate-300">-</td>`;
-        }
+                const record = student.attendance[key];
+                if (!record) {
+                    return `<td class="py-3 px-4 text-center font-mono text-slate-300">-</td>`;
+                }
 
-        const current = record.status;
-        let nextStatus = 'PRESENT';
-        let btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
+                const current = record.status;
+                let nextStatus = 'PRESENT';
+                let btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20';
 
-        if (current === 'P') {
-            nextStatus = 'ABSENT';
-            btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20';
-        } else if (current === 'A') {
-            nextStatus = 'LATE';
-            btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20';
-        } else if (current === 'L') {
-            nextStatus = 'PRESENT';
-            btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20';
-        }
+                if (current === 'P') {
+                    nextStatus = 'ABSENT';
+                    btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20';
+                } else if (current === 'A') {
+                    nextStatus = 'LATE';
+                    btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 border border-rose-500/20';
+                } else if (current === 'L') {
+                    nextStatus = 'PRESENT';
+                    btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/20';
+                }
 
-        return `
+                return `
                     <td class="py-3 px-4 text-center font-mono font-bold">
-                        <button onclick="toggleAttendanceStatus('${record.logId}', '${nextStatus}')"
-                                class="px-2.5 py-1 rounded transition-all cursor-pointer ${btnStyle}">
+                        <button onclick="toggleAttendanceStatus('${record.logId}', '${nextStatus}', this)"
+                                class="w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center ${btnStyle}">
                             ${current}
                         </button>
                     </td>
                 `;
-    }).join('')}
+            }).join('')}
         </tr>
     `).join('');
 }
 
-async function toggleAttendanceStatus(id, newStatus) {
+async function deleteAttendanceSession(date, hour, subjectCode) {
+    requestConfirmation({
+        title: `Remove Hour Session?`,
+        message: `Are you sure you want to completely delete attendance logs for Hour ${hour} (${subjectCode}) on ${date}? This action cannot be undone.`,
+        onConfirm: async () => {
+            try {
+                const queryParams = new URLSearchParams({
+                    date: date,
+                    hour: hour,
+                    subjectCode: subjectCode
+                });
+
+                const res = await apiFetch(`/api/admin/attendance-session?${queryParams.toString()}`, 'DELETE');
+                showAlert(res.message || 'Hour session deleted successfully.');
+                await fetchAttendanceLogs();
+            } catch (err) {
+                showAlert(`Failed to delete hour session: ${err.message}`, true);
+            }
+        }
+    });
+}
+
+// Optimized toggle function
+async function toggleAttendanceStatus(id, newStatus, btnElement) {
+    if (!btnElement) return;
+
+    const originalText = btnElement.textContent.trim();
+    const originalClassName = btnElement.className;
+
+    let nextStatusText = 'P';
+    let nextStatusForApi = 'PRESENT';
+    let btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20';
+
+    if (newStatus === 'PRESENT' || newStatus === 'P') {
+        nextStatusText = 'P';
+        nextStatusForApi = 'ABSENT';
+        btnStyle = 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20';
+    } else if (newStatus === 'ABSENT' || newStatus === 'A') {
+        nextStatusText = 'A';
+        nextStatusForApi = 'LATE';
+        btnStyle = 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 border border-rose-500/20';
+    } else if (newStatus === 'LATE' || newStatus === 'L') {
+        nextStatusText = 'L';
+        nextStatusForApi = 'PRESENT';
+        btnStyle = 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/20';
+    }
+
+    btnElement.textContent = nextStatusText;
+    btnElement.className = `w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center ${btnStyle}`;
+    btnElement.setAttribute('onclick', `toggleAttendanceStatus('${id}', '${nextStatusForApi}', this)`);
+
+    if (Array.isArray(window.currentAttendanceLogs)) {
+        const logItem = window.currentAttendanceLogs.find(l => String(l.id) === String(id));
+        if (logItem) {
+            logItem.status = newStatus;
+        }
+    }
+
     try {
         await apiFetch(`/api/admin/attendance/${id}`, 'PUT', { id: String(id), status: newStatus });
         showAlert('Attendance status updated.');
-        await fetchAttendanceLogs();
     } catch (err) {
         try {
             await apiFetch('/api/admin/update-attendance', 'POST', { id: String(id), status: newStatus });
             showAlert('Attendance status updated.');
-            await fetchAttendanceLogs();
         } catch (fallbackErr) {
+            btnElement.textContent = originalText;
+            btnElement.className = originalClassName;
+            btnElement.setAttribute('onclick', `toggleAttendanceStatus('${id}', '${newStatus}', this)`);
             showAlert(`Failed to update status: ${fallbackErr.message}`, true);
         }
     }
@@ -1361,7 +1608,7 @@ function exportAdminLogsCSV() {
     });
 
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
-        const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
+        const dateComp = new Date(a[1].rawDate) - new Date(a[1].rawDate);
         if (dateComp !== 0) return dateComp;
         return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
     });
@@ -1389,6 +1636,7 @@ function exportAdminLogsCSV() {
     document.body.removeChild(link);
 }
 
+// --- TIMETABLE MODULE ---
 function getMappedSubjectsForSelectedBatchAndSem() {
     const batchSelect = document.getElementById("tt-batch-select") || document.getElementById("batchSelect");
     const semesterSelect = document.getElementById("tt-semester-select") || document.getElementById("semesterSelect");
@@ -1511,6 +1759,7 @@ async function fetchTimetable(batch, semester, day) {
 }
 
 async function saveTimetable() {
+    const saveBtn = document.getElementById("save-timetable-btn");
     const batchSelect = document.getElementById("tt-batch-select") || document.getElementById("batchSelect");
     const semesterSelect = document.getElementById("tt-semester-select") || document.getElementById("semesterSelect");
     const daySelect = document.getElementById("tt-day-select") || document.getElementById("daySelect");
@@ -1544,6 +1793,8 @@ async function saveTimetable() {
 
     const payload = { batch, semester, day, slots };
 
+    setButtonLoading(saveBtn, true, 'Saving...');
+
     try {
         let res;
         try {
@@ -1563,6 +1814,8 @@ async function saveTimetable() {
         }
     } catch (error) {
         showAlert(`Failed to save timetable: ${error.message}`, true);
+    } finally {
+        setButtonLoading(saveBtn, false);
     }
 }
 
@@ -1594,6 +1847,8 @@ async function fetchWeeklyMatrix() {
         tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-slate-400 italic text-center">Select batch and semester to load full week timetable...</td></tr>`;
         return;
     }
+
+    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-slate-400 font-mono font-bold animate-pulse text-center">Loading weekly schedule matrix...</td></tr>`;
 
     const subjectNameMap = new Map();
     (window.assignedSubjectsCache || []).forEach(item => {
@@ -1629,14 +1884,14 @@ async function fetchWeeklyMatrix() {
                 <tr class="hover:bg-slate-50 transition-colors">
                     <td class="py-3 px-4 font-sans font-bold text-slate-700 text-left bg-slate-50/50 border-r border-slate-200">${day}</td>
                     ${[1, 2, 3, 4, 5].map(hour => {
-                const subjectDisplay = slotMap[hour] || '-';
-                const isEmpty = subjectDisplay === '-';
-                return `
+                        const subjectDisplay = slotMap[hour] || '-';
+                        const isEmpty = subjectDisplay === '-';
+                        return `
                             <td class="py-3 px-3 border-r border-slate-200 ${isEmpty ? 'text-slate-300 font-sans' : 'font-bold text-indigo-600 bg-indigo-50/30'}">
                                 ${escapeHtml(subjectDisplay)}
                             </td>
                         `;
-            }).join('')}
+                    }).join('')}
                 </tr>
             `;
         });
@@ -1682,6 +1937,7 @@ function populateBatchDropdowns(batches) {
     });
 }
 
+// --- WINDOW GLOBAL BINDINGS ---
 window.fetchWeeklyMatrix = fetchWeeklyMatrix;
 window.initTimetable = initTimetable;
 window.fetchTimetable = fetchTimetable;
@@ -1697,6 +1953,8 @@ window.closeStudentDetailModal = closeStudentDetailModal;
 window.fetchStudentDetailWithSem = fetchStudentDetailWithSem;
 window.toggleEditMode = toggleEditMode;
 window.cancelEditMode = cancelEditMode;
+window.toggleAttendanceStatus = toggleAttendanceStatus;
+window.deleteAttendanceSession = deleteAttendanceSession;
 
 window.toggleTeacherPasswordVisibility = function(index) {
     const el = document.getElementById(`teacher-pwd-${index}`);

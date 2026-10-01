@@ -1,0 +1,25 @@
+{
+  "name": "igmetrix",
+  "version": "1.0.0",
+  "description": "This project was created using the [Ktor Project Generator](https://start.ktor.io).",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/main/resources/public/css/input.css -o ./src/main/resources/public/css/tailwind.min.css --minify",
+    "watch:css": "tailwindcss -i ./src/main/resources/public/css/input.css -o ./src/main/resources/public/css/tailwind.min.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Abhinanthcs/Igmetrix.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Abhinanthcs/Igmetrix/issues"
+  },
+  "homepage": "https://github.com/Abhinanthcs/Igmetrix#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

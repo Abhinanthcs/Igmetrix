@@ -1,10 +1,43 @@
+/* js/teacher.js */
+
+// --- AUTH GUARD (Redirect unauthenticated access to login) ---
+(function checkTeacherAuth() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.replace('login.html');
+    }
+})();
+
+// Dynamic dropdown loading state helper
+function setDropdownLoading(selectEl, isLoading, text = 'Loading options...') {
+    if (!selectEl) return;
+    if (isLoading) {
+        selectEl.dataset.originalContent = selectEl.innerHTML;
+        selectEl.disabled = true;
+        selectEl.innerHTML = `<option value="" disabled selected>⏳ ${text}</option>`;
+    } else {
+        selectEl.disabled = false;
+        if (selectEl.dataset.originalContent) {
+            selectEl.innerHTML = selectEl.dataset.originalContent;
+            delete selectEl.dataset.originalContent;
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.replace('login.html');
+        return;
+    }
+
+    const dateInput = document.getElementById('date');
+    if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+
     loadBatches();
 
-    document.getElementById('bulkAttendanceForm').addEventListener('submit', submitBulkAttendance);
+    document.getElementById('bulkAttendanceForm')?.addEventListener('submit', submitBulkAttendance);
 
-    // Event listeners to trigger auto-select whenever time/date inputs change
     document.getElementById('date')?.addEventListener('change', autoSelectSubjectFromTimetable);
     document.getElementById('hour')?.addEventListener('input', autoSelectSubjectFromTimetable);
     document.getElementById('hour')?.addEventListener('change', autoSelectSubjectFromTimetable);
@@ -15,12 +48,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function getAuthHeader() {
     const token = localStorage.getItem('jwtToken');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
+    if (!token) {
+        window.location.replace('login.html');
+        return {};
+    }
+    return { 'Authorization': `Bearer ${token}` };
 }
 
-function logout() {
+function logout(btnElement) {
+    const btn = btnElement || document.getElementById('logout-btn') || document.querySelector('.signout-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+        btn.innerHTML = `
+            <span class="inline-flex items-center justify-center gap-2">
+                <svg class="animate-spin h-3.5 w-3.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Signing Out...</span>
+            </span>
+        `;
+    }
     localStorage.removeItem('jwtToken');
-    window.location.href = 'login.html';
+    setTimeout(() => {
+        window.location.replace('login.html');
+    }, 300);
 }
 
 function markAll(status) {
@@ -33,10 +86,21 @@ function markAll(status) {
 // Fetch all available batches from admin route
 async function loadBatches() {
     const batchSelect = document.getElementById('batchSelect');
+    if (!batchSelect) return;
+
+    setDropdownLoading(batchSelect, true, 'Loading Batches...');
+
     try {
         const response = await fetch('/api/admin/batches', {
             headers: { ...getAuthHeader() }
         });
+
+        if (response.status === 401) {
+            localStorage.removeItem('jwtToken');
+            window.location.replace('login.html');
+            return;
+        }
+
         if (response.ok) {
             const batches = await response.json();
             batchSelect.innerHTML = '<option value="">Select Batch</option>';
@@ -49,13 +113,16 @@ async function loadBatches() {
         }
     } catch (e) {
         console.error("Failed to load batches", e);
+        batchSelect.innerHTML = '<option value="">Select Batch</option>';
+    } finally {
+        batchSelect.disabled = false;
     }
 }
 
 // Triggered when Batch or Semester selection changes
 async function onBatchOrSemChange() {
-    const batch = document.getElementById('batchSelect').value;
-    const sem = document.getElementById('semesterSelect').value;
+    const batch = document.getElementById('batchSelect')?.value;
+    const sem = document.getElementById('semesterSelect')?.value;
     const subjectCode = document.getElementById('subjectSelect')?.value;
 
     if (batch && sem) {
@@ -64,23 +131,39 @@ async function onBatchOrSemChange() {
         await autoSelectSubjectFromTimetable();
     } else if (batch) {
         await loadStudentRoster(batch, sem, subjectCode);
-        document.getElementById('subjectSelect').innerHTML = '<option value="">Select Subject</option>';
+        const subjSel = document.getElementById('subjectSelect');
+        if (subjSel) subjSel.innerHTML = '<option value="">Select Subject</option>';
     } else {
-        document.getElementById('subjectSelect').innerHTML = '<option value="">Select Subject</option>';
-        document.getElementById('studentRosterBody').innerHTML = `
-            <tr>
-                <td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">Select a batch to load students...</td>
-            </tr>`;
+        const subjSel = document.getElementById('subjectSelect');
+        if (subjSel) subjSel.innerHTML = '<option value="">Select Subject</option>';
+        const roster = document.getElementById('studentRosterBody');
+        if (roster) {
+            roster.innerHTML = `
+                <tr>
+                    <td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">Select a batch to load students...</td>
+                </tr>`;
+        }
     }
 }
 
 // Load subjects assigned to batch + semester
 async function loadSubjectsForBatchAndSem(batch, sem) {
     const subjectSelect = document.getElementById('subjectSelect');
+    if (!subjectSelect) return;
+
+    setDropdownLoading(subjectSelect, true, 'Loading Subjects...');
+
     try {
         const response = await fetch(`/api/admin/batches/${encodeURIComponent(batch)}/semester/${sem}/subjects`, {
             headers: { ...getAuthHeader() }
         });
+
+        if (response.status === 401) {
+            localStorage.removeItem('jwtToken');
+            window.location.replace('login.html');
+            return;
+        }
+
         if (response.ok) {
             const subjects = await response.json();
             subjectSelect.innerHTML = '<option value="">Select Subject</option>';
@@ -94,6 +177,9 @@ async function loadSubjectsForBatchAndSem(batch, sem) {
         }
     } catch (e) {
         console.error("Failed to load subjects", e);
+        subjectSelect.innerHTML = '<option value="">Select Subject</option>';
+    } finally {
+        subjectSelect.disabled = false;
     }
 }
 
@@ -120,10 +206,22 @@ async function autoSelectSubjectFromTimetable() {
             headers: { ...getAuthHeader() }
         });
 
+        if (response.status === 401) {
+            localStorage.removeItem('jwtToken');
+            window.location.replace('login.html');
+            return;
+        }
+
         if (!response.ok) {
             response = await fetch(`/api/timetable?batch=${encodeURIComponent(batch)}&semester=${encodeURIComponent(semNumber)}&day=${dayOfWeek}`, {
                 headers: { ...getAuthHeader() }
             });
+
+            if (response.status === 401) {
+                localStorage.removeItem('jwtToken');
+                window.location.replace('login.html');
+                return;
+            }
         }
 
         if (!response.ok) return;
@@ -155,16 +253,21 @@ async function autoSelectSubjectFromTimetable() {
 // Update hidden fields & reload student roster when subject changes
 async function onSubjectSelectChange() {
     const subjectSelect = document.getElementById('subjectSelect');
+    if (!subjectSelect) return;
+
     const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
     const batch = document.getElementById('batchSelect')?.value;
     const sem = document.getElementById('semesterSelect')?.value;
 
+    const codeInput = document.getElementById('subjectCode');
+    const nameInput = document.getElementById('subjectName');
+
     if (selectedOption && selectedOption.value) {
-        document.getElementById('subjectCode').value = selectedOption.value;
-        document.getElementById('subjectName').value = selectedOption.dataset.name || '';
+        if (codeInput) codeInput.value = selectedOption.value;
+        if (nameInput) nameInput.value = selectedOption.dataset.name || '';
     } else {
-        document.getElementById('subjectCode').value = '';
-        document.getElementById('subjectName').value = '';
+        if (codeInput) codeInput.value = '';
+        if (nameInput) nameInput.value = '';
     }
 
     if (batch) {
@@ -172,9 +275,16 @@ async function onSubjectSelectChange() {
     }
 }
 
-// Load student roster (Filtered by Global Subject assignment if applicable)
+// Load student roster
 async function loadStudentRoster(batch, semester, subjectCode) {
     const tbody = document.getElementById('studentRosterBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="3" class="px-4 py-6 text-center text-slate-400 font-mono font-bold animate-pulse">Loading student roster...</td>
+        </tr>`;
+
     let students = [];
 
     const queryParams = new URLSearchParams({ batch });
@@ -186,12 +296,25 @@ async function loadStudentRoster(batch, semester, subjectCode) {
             headers: { ...getAuthHeader() }
         });
 
+        if (response.status === 401) {
+            localStorage.removeItem('jwtToken');
+            window.location.replace('login.html');
+            return;
+        }
+
         if (response.ok) {
             students = await response.json();
         } else {
             const fallbackRes = await fetch(`/api/admin/batch-students?batch=${encodeURIComponent(batch)}`, {
                 headers: { ...getAuthHeader() }
             });
+
+            if (fallbackRes.status === 401) {
+                localStorage.removeItem('jwtToken');
+                window.location.replace('login.html');
+                return;
+            }
+
             if (fallbackRes.ok) students = await fallbackRes.json();
         }
     } catch (e) {
@@ -207,6 +330,12 @@ async function loadStudentRoster(batch, semester, subjectCode) {
             </tr>`;
         return;
     }
+
+    students.sort((a, b) => {
+        const regA = (a.registerNumber || '').toString().toUpperCase();
+        const regB = (b.registerNumber || '').toString().toUpperCase();
+        return regA.localeCompare(regB, undefined, { numeric: true, sensitivity: 'base' });
+    });
 
     students.forEach((student, index) => {
         const row = document.createElement('tr');
@@ -238,8 +367,26 @@ async function loadStudentRoster(batch, semester, subjectCode) {
 // Submit bulk attendance
 async function submitBulkAttendance(e) {
     e.preventDefault();
+
+    const submitBtn = e.target.querySelector('button[type="submit"]') || e.target.querySelector('button');
     const feedback = document.getElementById('feedbackMessage');
+
     if (feedback) feedback.className = "hidden";
+
+    const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Submit All Attendance';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+        submitBtn.innerHTML = `
+            <span class="inline-flex items-center gap-2">
+                <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Submitting...</span>
+            </span>
+        `;
+    }
 
     const selectedStudents = [];
     const radioGroups = document.querySelectorAll('#studentRosterBody input[type="radio"]:checked');
@@ -252,10 +399,10 @@ async function submitBulkAttendance(e) {
     });
 
     const payload = {
-        subjectCode: document.getElementById('subjectCode').value.trim(),
-        subjectName: document.getElementById('subjectName').value.trim(),
-        date: document.getElementById('date').value,
-        hour: parseInt(document.getElementById('hour').value, 10),
+        subjectCode: document.getElementById('subjectCode')?.value.trim() || '',
+        subjectName: document.getElementById('subjectName')?.value.trim() || '',
+        date: document.getElementById('date')?.value || '',
+        hour: parseInt(document.getElementById('hour')?.value || '1', 10),
         students: selectedStudents
     };
 
@@ -268,6 +415,12 @@ async function submitBulkAttendance(e) {
             },
             body: JSON.stringify(payload)
         });
+
+        if (response.status === 401) {
+            localStorage.removeItem('jwtToken');
+            window.location.replace('login.html');
+            return;
+        }
 
         const result = await response.json();
 
@@ -287,6 +440,12 @@ async function submitBulkAttendance(e) {
         if (feedback) {
             feedback.className = "p-3 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 border border-rose-200 block";
             feedback.innerText = "Error connecting to backend server.";
+        }
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+            submitBtn.innerHTML = originalBtnText;
         }
     }
 }
