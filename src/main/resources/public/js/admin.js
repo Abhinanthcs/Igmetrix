@@ -1456,22 +1456,22 @@ function renderPivotAttendanceTable(logs) {
 
     if (thead) {
         thead.innerHTML = `
-            <tr class="bg-slate-50 border-b border-slate-200 uppercase font-mono font-bold text-slate-600 text-xs">
-                <th class="py-3 px-4 text-left">REGISTER NO</th>
-                <th class="py-3 px-4 text-left">STUDENT NAME</th>
-                ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[130px] whitespace-nowrap align-top">${session.header}</th>`).join('')}
+            <tr class="bg-slate-50 uppercase font-mono font-bold text-slate-600 text-xs">
+                <th class="sticky left-0 z-20 bg-slate-50 py-3 px-4 text-left w-[150px] min-w-[150px] max-w-[150px] border-b border-slate-200">REGISTER NO</th>
+                <th class="sticky left-[150px] z-20 bg-slate-50 py-3 px-4 text-left w-[200px] min-w-[200px] max-w-[200px] border-b border-slate-200 border-r border-slate-200 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)]">STUDENT NAME</th>
+                ${sortedSessions.map(([_, session]) => `<th class="py-3 px-4 text-center min-w-[130px] whitespace-nowrap align-top border-b border-slate-200 bg-slate-50">${session.header}</th>`).join('')}
             </tr>
         `;
     }
 
     tbody.innerHTML = sortedStudents.map(student => `
-        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 text-xs font-medium">
-            <td class="py-3 px-4 font-mono font-bold text-slate-800">${escapeHtml(student.reg)}</td>
-            <td class="py-3 px-4 text-slate-700 font-semibold uppercase">${escapeHtml(student.name)}</td>
+        <tr class="group hover:bg-slate-50 transition-colors text-xs font-medium">
+            <td class="sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors py-3 px-4 font-mono font-bold text-slate-800 w-[150px] min-w-[150px] max-w-[150px] border-b border-slate-100 truncate">${escapeHtml(student.reg)}</td>
+            <td class="sticky left-[150px] z-10 bg-white group-hover:bg-slate-50 transition-colors py-3 px-4 text-slate-700 font-semibold uppercase w-[200px] min-w-[200px] max-w-[200px] border-b border-slate-100 border-r border-slate-200 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)] truncate" title="${escapeHtml(student.name)}">${escapeHtml(student.name)}</td>
             ${sortedSessions.map(([key, _]) => {
                 const record = student.attendance[key];
                 if (!record) {
-                    return `<td class="py-3 px-4 text-center font-mono text-slate-300">-</td>`;
+                    return `<td class="py-3 px-4 text-center font-mono text-slate-300 border-b border-slate-100">-</td>`;
                 }
 
                 const current = record.status;
@@ -1490,7 +1490,7 @@ function renderPivotAttendanceTable(logs) {
                 }
 
                 return `
-                    <td class="py-3 px-4 text-center font-mono font-bold">
+                    <td class="py-3 px-4 text-center font-mono font-bold border-b border-slate-100">
                         <button onclick="toggleAttendanceStatus('${record.logId}', '${nextStatus}', this)"
                                 class="w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center ${btnStyle}">
                             ${current}
