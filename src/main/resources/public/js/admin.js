@@ -1,6 +1,6 @@
 /* js/admin.js */
 
-// --- AUTH GUARD ---
+// --- AUTH GUARD (Redirect unauthenticated access to login) ---
 (function checkAdminAuth() {
     const token = localStorage.getItem('jwtToken');
     if (!token) {
@@ -11,6 +11,7 @@
 // --- CONFIGURATION & TOKEN UTILITIES ---
 const TOKEN_KEY = 'jwtToken';
 
+// In-memory cache for client-side search & filtering
 let allStudentsCache = [];
 let assignedSubjectsCache = [];
 let currentAttendanceLogs = [];
@@ -29,6 +30,7 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+// STRATEGY 1: Loading state helper for dropdowns
 function setDropdownLoading(selectEl, isLoading, loadingText = 'Loading options...') {
     if (!selectEl) return;
     if (isLoading) {
@@ -44,6 +46,7 @@ function setDropdownLoading(selectEl, isLoading, loadingText = 'Loading options.
     }
 }
 
+// Loading state helper for form submit buttons
 function setButtonLoading(btn, isLoading, loadingText = 'Processing...') {
     if (!btn) return;
     if (isLoading) {
@@ -72,6 +75,7 @@ function setButtonLoading(btn, isLoading, loadingText = 'Processing...') {
 async function apiFetch(endpoint, method = 'GET', body = null) {
     const token = localStorage.getItem(TOKEN_KEY);
 
+    // Redirect immediately if token is missing
     if (!token) {
         window.location.replace('login.html');
         return;
@@ -89,6 +93,7 @@ async function apiFetch(endpoint, method = 'GET', body = null) {
 
     const response = await fetch(endpoint, options);
 
+    // If backend returns 401 Unauthorized, clear invalid token & force login redirect
     if (response.status === 401) {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem('adminDepartment');
@@ -271,6 +276,7 @@ function requestConfirmation({ title, message, onConfirm }) {
     }
 }
 
+// STRATEGY 2: Pre-fetch & Memory Cache Initializer
 async function loadDashboardData() {
     try {
         await Promise.all([
@@ -548,7 +554,7 @@ document.getElementById('edit-student-form')?.addEventListener('submit', async (
     }
 });
 
-// --- MANAGEMENT MODULE HANDLERS ---
+// --- REMAINING MANAGEMENT MODULE HANDLERS ---
 async function handleCreateBatch(event) {
     event.preventDefault();
     const submitBtn = event.target.querySelector('button[type="submit"]');
@@ -1214,6 +1220,60 @@ async function fetchTeachers() {
     }
 }
 
+async function fetchPendingLogs() {
+    try {
+        const logs = await apiFetch('/api/admin/pending', 'GET');
+        const container = document.getElementById('corrections-container');
+        if (!container) return;
+
+        if (!logs || logs.length === 0) {
+            container.innerHTML = `<p class="text-xs text-slate-400 italic">No pending logs requiring approval.</p>`;
+            return;
+        }
+
+        container.innerHTML = logs.map(l => `
+            <div class="p-4 bg-white border border-slate-200 rounded-xl flex justify-between items-center text-xs shadow-sm">
+                <div>
+                    <span class="font-bold text-slate-800">${escapeHtml(l.subjectName)} (${escapeHtml(l.subjectCode)})</span> - Hour ${l.hour}
+                    <span class="font-mono text-slate-600">(${escapeHtml(l.date)})</span>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="approvePendingLog(${l.id})" class="px-3 py-1 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-all">Approve</button>
+                    <button onclick="confirmRejectPendingLog(${l.id})" class="px-3 py-1 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 transition-all">Reject</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        console.error('Error fetching pending logs:', err);
+    }
+}
+
+async function approvePendingLog(id) {
+    try {
+        const res = await apiFetch('/api/admin/approve-log', 'POST', { id });
+        showAlert(res.message || 'Log approved successfully.');
+        fetchPendingLogs();
+    } catch (err) {
+        showAlert(`Approval failed: ${err.message}`, true);
+    }
+}
+
+function confirmRejectPendingLog(id) {
+    requestConfirmation({
+        title: 'Reject Attendance Log?',
+        message: 'Are you sure you want to reject and clear this unauthenticated log entry?',
+        onConfirm: async () => {
+            try {
+                const res = await apiFetch('/api/admin/reject-log', 'POST', { id });
+                showAlert(res.message || 'Log rejected.');
+                fetchPendingLogs();
+            } catch (err) {
+                showAlert(`Rejection failed: ${err.message}`, true);
+            }
+        }
+    });
+}
+
 function confirmDeleteStudent(registerNumber) {
     requestConfirmation({
         title: 'Remove Student?',
@@ -1265,19 +1325,6 @@ function confirmDeleteTeacher(teacherId) {
 }
 
 // --- ATTENDANCE LOGS & PIVOT MATRIX ---
-async function executeLogsFetchWithLoading() {
-    const btn = document.getElementById('log-enter-btn');
-    setButtonLoading(btn, true, 'Loading admin.html...');
-
-    try {
-        await fetchAttendanceLogs();
-    } finally {
-        setTimeout(() => {
-            setButtonLoading(btn, false);
-        }, 300);
-    }
-}
-
 async function fetchAttendanceLogs() {
     const dateModeEl = document.getElementById('log-date-mode');
     const dateMode = dateModeEl ? dateModeEl.value : 'ALL';
@@ -1403,23 +1450,14 @@ function renderPivotAttendanceTable(logs) {
     const dateModeEl = document.getElementById('log-date-mode');
     const dateMode = dateModeEl ? dateModeEl.value : 'ALL';
 
-    // FIX: Properly handle both Date ordering and Hour ordering (H1 -> H5 Ascending)
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
-        const dateA = new Date(a[1].rawDate);
-        const dateB = new Date(b[1].rawDate);
-
         if (dateMode === 'RANGE') {
-            // Ascending dates
-            if (dateA.getTime() !== dateB.getTime()) {
-                return dateA - dateB;
-            }
-            // Ascending hours (H1 -> H2 -> H3 -> H4 -> H5)
+            const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
+            if (dateComp !== 0) return dateComp;
             return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
         } else {
-            // Specific or ALL mode: Latest date first, but H1 -> H5 within that date
-            if (dateA.getTime() !== dateB.getTime()) {
-                return dateB - dateA;
-            }
+            const dateComp = new Date(b[1].rawDate) - new Date(a[1].rawDate);
+            if (dateComp !== 0) return dateComp;
             return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
         }
     });
@@ -1496,6 +1534,7 @@ async function deleteAttendanceSession(date, hour, subjectCode) {
     });
 }
 
+// Optimized toggle function
 async function toggleAttendanceStatus(id, newStatus, btnElement) {
     if (!btnElement) return;
 
@@ -1935,7 +1974,6 @@ window.toggleEditMode = toggleEditMode;
 window.cancelEditMode = cancelEditMode;
 window.toggleAttendanceStatus = toggleAttendanceStatus;
 window.deleteAttendanceSession = deleteAttendanceSession;
-window.executeLogsFetchWithLoading = executeLogsFetchWithLoading;
 
 window.toggleTeacherPasswordVisibility = function(index) {
     const el = document.getElementById(`teacher-pwd-${index}`);
