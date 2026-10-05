@@ -1,3 +1,5 @@
+/* js/admin.js */
+
 // --- AUTH GUARD (Redirect unauthenticated access to login) ---
 (function checkAdminAuth() {
     const token = localStorage.getItem('jwtToken');
@@ -160,16 +162,16 @@ function initNavigation() {
             }
 
             if (targetTab === 'attendance-logs') {
-                        fetchAttendanceLogs();
-                    } else if (targetTab === 'students' && allStudentsCache.length === 0) {
-                        fetchStudents();
-                    } else if (targetTab === 'teachers') {
-                        fetchTeachers();
-                    } else if (targetTab === 'batches') {
-                        fetchBatches();
-                    } else if (targetTab === 'assigned-subjects') {
-                        fetchAssignedSubjects();
-                    }
+                fetchAttendanceLogs();
+            } else if (targetTab === 'students' && allStudentsCache.length === 0) {
+                fetchStudents();
+            } else if (targetTab === 'teachers') {
+                fetchTeachers();
+            } else if (targetTab === 'batches') {
+                fetchBatches();
+            } else if (targetTab === 'assigned-subjects') {
+                fetchAssignedSubjects();
+            }
 
             if (targetTab === 'subjects' || targetTab === 'subject-manager') {
                 if (typeof window.fetchWeeklyMatrix === "function") {
@@ -211,6 +213,9 @@ function initFilterListeners() {
     });
 
     document.getElementById('log-filter-date')?.addEventListener('change', fetchAttendanceLogs);
+    document.getElementById('log-filter-start-date')?.addEventListener('change', fetchAttendanceLogs);
+    document.getElementById('log-filter-end-date')?.addEventListener('change', fetchAttendanceLogs);
+    document.getElementById('log-date-mode')?.addEventListener('change', fetchAttendanceLogs);
 
     document.getElementById('log-filter-batch')?.addEventListener('change', async () => {
         await populateSubjectFilter();
@@ -273,7 +278,6 @@ function requestConfirmation({ title, message, onConfirm }) {
 
 // STRATEGY 2: Pre-fetch & Memory Cache Initializer
 async function loadDashboardData() {
-    // Stage 1: Load only what is strictly necessary to populate filter controls
     try {
         await Promise.all([
             fetchBatches(),
@@ -354,7 +358,7 @@ function initFormListeners() {
     }
 }
 
-// --- STUDENT DIRECTORY WITH CLICKABLE DETAILS ---
+// --- STUDENT DIRECTORY ---
 async function fetchStudents() {
     try {
         const batchVal = document.getElementById('student-batch-filter')?.value || 'ALL';
@@ -408,7 +412,7 @@ function renderStudentTable(students) {
     `).join('');
 }
 
-// --- INDIVIDUAL STUDENT PROFILE & SEMESTER BREAKDOWN MODAL LOGIC ---
+// --- INDIVIDUAL STUDENT PROFILE MODAL ---
 async function openStudentDetailModal(regNumber) {
     activeDetailRegNum = regNumber;
     const modal = document.getElementById('student-detail-modal');
@@ -442,7 +446,6 @@ async function fetchStudentDetailWithSem() {
         document.getElementById('detail-input-appno').value = student.applicationNumber || 'N/A';
         document.getElementById('detail-input-phone').value = student.phoneNumber || 'N/A';
 
-        // Extract numbers directly from Ktor DTO Response
         const totalClasses = student.totalClasses || 0;
         const presentCount = student.presentCount || 0;
         const lateCount = student.lateCount || 0;
@@ -457,7 +460,6 @@ async function fetchStudentDetailWithSem() {
         document.getElementById('detail-absent-classes').textContent = absentCount;
         document.getElementById('detail-perc').textContent = `${student.attendancePercentage || 0}%`;
 
-        // Update table head if element exists
         const thead = document.getElementById('detail-subject-table-head');
         if (thead) {
             thead.innerHTML = `
@@ -944,7 +946,6 @@ async function toggleStudentElectiveChoice(regNo, batch, semester, groupCode, su
     }
 }
 
-// STRATEGY 1 & 2 COMBINED: Fast Memory Lookup + Dropdown Loading Indicators
 async function populateSubjectFilter() {
     const subjectSelect = document.getElementById('log-filter-subject');
     if (!subjectSelect) return;
@@ -1446,10 +1447,19 @@ function renderPivotAttendanceTable(logs) {
         };
     });
 
+    const dateModeEl = document.getElementById('log-date-mode');
+    const dateMode = dateModeEl ? dateModeEl.value : 'ALL';
+
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
-        const dateComp = new Date(b[1].rawDate) - new Date(a[1].rawDate);
-        if (dateComp !== 0) return dateComp;
-        return parseInt(b[1].rawHour, 10) - parseInt(a[1].rawHour, 10);
+        if (dateMode === 'RANGE') {
+            const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
+            if (dateComp !== 0) return dateComp;
+            return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
+        } else {
+            const dateComp = new Date(b[1].rawDate) - new Date(a[1].rawDate);
+            if (dateComp !== 0) return dateComp;
+            return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
+        }
     });
 
     const sortedStudents = Array.from(studentsMap.values()).sort((a, b) => a.reg.localeCompare(b.reg));
@@ -1607,10 +1617,19 @@ function exportAdminLogsCSV() {
         studentsMap.get(reg).attendance[sessionKey] = isPresent ? 'P' : 'A';
     });
 
+    const dateModeEl = document.getElementById('log-date-mode');
+    const dateMode = dateModeEl ? dateModeEl.value : 'ALL';
+
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
-        const dateComp = new Date(a[1].rawDate) - new Date(a[1].rawDate);
-        if (dateComp !== 0) return dateComp;
-        return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
+        if (dateMode === 'RANGE') {
+            const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
+            if (dateComp !== 0) return dateComp;
+            return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
+        } else {
+            const dateComp = new Date(b[1].rawDate) - new Date(a[1].rawDate);
+            if (dateComp !== 0) return dateComp;
+            return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
+        }
     });
 
     const sortedStudents = Array.from(studentsMap.values()).sort((a, b) => a.reg.localeCompare(b.reg));
