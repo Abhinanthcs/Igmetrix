@@ -1403,14 +1403,23 @@ function renderPivotAttendanceTable(logs) {
     const dateModeEl = document.getElementById('log-date-mode');
     const dateMode = dateModeEl ? dateModeEl.value : 'ALL';
 
+    // FIX: Properly handle both Date ordering and Hour ordering (H1 -> H5 Ascending)
     const sortedSessions = Array.from(sessionsMap.entries()).sort((a, b) => {
+        const dateA = new Date(a[1].rawDate);
+        const dateB = new Date(b[1].rawDate);
+
         if (dateMode === 'RANGE') {
-            const dateComp = new Date(a[1].rawDate) - new Date(b[1].rawDate);
-            if (dateComp !== 0) return dateComp;
+            // Ascending dates
+            if (dateA.getTime() !== dateB.getTime()) {
+                return dateA - dateB;
+            }
+            // Ascending hours (H1 -> H2 -> H3 -> H4 -> H5)
             return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
         } else {
-            const dateComp = new Date(b[1].rawDate) - new Date(a[1].rawDate);
-            if (dateComp !== 0) return dateComp;
+            // Specific or ALL mode: Latest date first, but H1 -> H5 within that date
+            if (dateA.getTime() !== dateB.getTime()) {
+                return dateB - dateA;
+            }
             return parseInt(a[1].rawHour, 10) - parseInt(b[1].rawHour, 10);
         }
     });
