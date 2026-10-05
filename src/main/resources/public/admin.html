@@ -44,13 +44,12 @@
         }
     </style>
 </head>
-<!-- h-screen overflow-hidden ensures the main window viewport remains fixed -->
 <body class="bg-slate-900 font-sans text-slate-100 flex flex-col h-screen overflow-hidden">
 
-<!-- Top Navigation Bar (Fixed / Sticky Header) -->
+<!-- Top Navigation Bar -->
 <header class="bg-slate-950 border-b border-slate-800 px-6 py-4 flex justify-between items-center z-50 shrink-0">
     <div class="flex items-center gap-4">
-        <!-- 3-Line Hamburger Menu Toggle -->
+        <!-- Hamburger Menu Toggle -->
         <button id="menu-toggle-btn" onclick="toggleSidebarMenu()" class="p-2 text-slate-300 hover:text-white hover:bg-slate-800/60 rounded-xl transition-all focus:outline-none border border-slate-800">
             <svg id="menu-icon-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path>
@@ -74,10 +73,10 @@
 <!-- Body Wrapper -->
 <div class="flex flex-1 relative h-full overflow-hidden">
 
-    <!-- Collapsible Sidebar Navigation (Fixed height, no page movement) -->
+    <!-- Collapsible Sidebar Navigation -->
     <aside id="sidebar-nav" class="w-64 bg-slate-950 border-r border-slate-800 p-6 hidden flex-col justify-between z-40 shrink-0 transition-all duration-300 h-full overflow-y-auto">
         <div class="space-y-6">
-            <!-- Category: Operations -->
+            <!-- Operations -->
             <div>
                 <p class="px-1 mb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase">Daily Operations</p>
                 <nav class="space-y-1">
@@ -87,7 +86,7 @@
                 </nav>
             </div>
 
-            <!-- Category: Management -->
+            <!-- Management -->
             <div>
                 <p class="px-1 mb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase">Management</p>
                 <nav class="space-y-1">
@@ -113,7 +112,7 @@
         </button>
     </aside>
 
-    <!-- Main Content Area (Scrolls independently without moving navigation) -->
+    <!-- Main Content Area -->
     <main class="flex-1 bg-slate-50 text-slate-900 p-4 sm:p-8 overflow-y-auto h-full">
 
         <!-- Global Alert Banner -->
@@ -131,7 +130,7 @@
                 </button>
             </div>
 
-            <!-- Search, Batch & Semester Filter Controls -->
+            <!-- Filters -->
             <div class="flex flex-col sm:flex-row gap-3 justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                 <div class="flex flex-1 gap-3 w-full">
                     <input type="text" id="student-search" placeholder="Search by name or reg number..."
@@ -292,7 +291,7 @@
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Card 1: Add New Subject -->
+                <!-- Add New Subject -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-4">Add New Subject</h4>
                     <form id="create-subject-form" class="space-y-4">
@@ -323,7 +322,7 @@
                     </form>
                 </div>
 
-                <!-- Card 2: Assign Subject to Semester -->
+                <!-- Assign Subject to Semester -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-4">Assign Subject to Semester</h4>
                     <form id="assign-subject-form" class="space-y-4">
@@ -359,7 +358,7 @@
                 </div>
             </div>
 
-            <!-- MASTER GLOBAL ELECTIVE POOL MATRIX -->
+            <!-- ELECTIVE POOL MATRIX -->
             <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
@@ -403,7 +402,7 @@
                 </div>
             </div>
 
-            <!-- WEEKLY TIMETABLE OVERVIEW MATRIX -->
+            <!-- WEEKLY TIMETABLE OVERVIEW -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
@@ -502,7 +501,7 @@
                 </div>
             </div>
 
-            <!-- Active Semester Mappings Table -->
+            <!-- Active Mappings Table -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
@@ -539,7 +538,7 @@
                 </table>
             </div>
 
-            <!-- LOCAL SUBJECT CATALOG POOL -->
+            <!-- LOCAL SUBJECT CATALOG -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                     <div>
@@ -560,7 +559,7 @@
                 </table>
             </div>
 
-            <!-- GLOBAL SUBJECT CATALOG POOL -->
+            <!-- GLOBAL SUBJECT CATALOG -->
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                     <div>
@@ -603,8 +602,9 @@
                 </div>
             </div>
 
+            <!-- Attendance Filter Controls -->
             <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 border-b border-slate-100 pb-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 border-b border-slate-100 pb-3">
                     <div>
                         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Date Selection Mode</label>
                         <select id="log-date-mode" onchange="toggleDateFilterMode()" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold outline-none">
@@ -624,6 +624,12 @@
                     <div id="container-end-date" class="hidden">
                         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">End Date</label>
                         <input type="date" id="log-filter-end-date" onchange="fetchAttendanceLogs()" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none">
+                    </div>
+                    <!-- Enter Button Trigger -->
+                    <div class="flex items-end">
+                        <button id="log-enter-btn" onclick="executeLogsFetchWithLoading()" class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2">
+                            <span>Enter</span>
+                        </button>
                     </div>
                 </div>
 
@@ -678,7 +684,6 @@
                 <div class="overflow-x-auto">
                     <table id="attendance-logs-table" class="w-full text-left border-separate border-spacing-0 text-xs">
                         <thead id="attendance-logs-table-head" class="bg-slate-50 uppercase font-mono font-bold text-slate-400">
-                        <!-- Dynamic Session Matrix Headers Rendered Here -->
                         </thead>
                         <tbody id="attendance-logs-table-body" class="font-medium">
                         <tr>
@@ -761,10 +766,9 @@
     </div>
 </div>
 
-<!-- INDIVIDUAL STUDENT DETAILS & EDIT MODAL -->
+<!-- STUDENT DETAILS & EDIT MODAL -->
 <div id="student-detail-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
-        <!-- Header -->
         <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
             <div>
                 <h3 id="detail-student-name" class="font-black text-slate-900 text-lg">Student Profile</h3>
@@ -774,7 +778,6 @@
         </div>
 
         <div class="p-6 space-y-6 overflow-y-auto flex-1">
-            <!-- Student Details Form / Edit Panel -->
             <form id="edit-student-form" class="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <div class="flex justify-between items-center border-b border-slate-200 pb-2">
                     <span class="text-xs font-bold text-slate-700 uppercase tracking-wide">Personal Details & Admission Info</span>
@@ -818,7 +821,6 @@
                 </div>
             </form>
 
-            <!-- Attendance Controls & Breakdown -->
             <div class="space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
@@ -838,7 +840,6 @@
                     </div>
                 </div>
 
-                <!-- Stats Cards Row (Updated to 5 cards to include Late) -->
                 <div class="grid grid-cols-5 gap-3 text-center">
                     <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
                         <span class="block text-[10px] font-bold text-slate-400 uppercase">Total Classes</span>
@@ -862,7 +863,6 @@
                     </div>
                 </div>
 
-                <!-- Subject-Wise Matrix -->
                 <div class="border border-slate-200 rounded-xl overflow-hidden">
                     <table class="w-full text-left text-xs border-collapse">
                         <thead id="detail-subject-table-head" class="bg-slate-50 text-slate-700 font-mono uppercase font-bold border-b border-slate-200">
