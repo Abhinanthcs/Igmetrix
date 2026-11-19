@@ -113,7 +113,7 @@
 </head>
 
 <!-- bg matches login.html gradient -->
-<body class="bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 flex items-center justify-center p-4 sm:p-6">
+<body class="bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 flex flex-col items-center justify-center min-h-screen p-4 sm:p-6">
 
 <!-- Full-Screen Preloader Overlay -->
 <div id="preloader-overlay" class="preloader-overlay" role="status" aria-live="polite" aria-busy="true" aria-label="Loading page">
@@ -127,7 +127,7 @@
 <!-- ══════════════════════════════════════════
      SIGNUP CARD
 ══════════════════════════════════════════ -->
-<div class="signup-card w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden my-6">
+<div class="signup-card w-full max-w-md sm:max-w-lg lg:max-w-xl mt-12 bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
 
     <!-- ── Card Header: Logo + Title ── -->
     <div class="px-8 pt-8 pb-6 text-center space-y-3">
@@ -166,7 +166,7 @@
                        required
                        autocomplete="username"
                        placeholder="e.g. WM24BCAR013"
-                       class="form-input"
+                       class="form-input shadow-sm focus:ring-2 focus:ring-slate-500"
                        aria-required="true">
             </div>
             <div>
@@ -179,7 +179,7 @@
                        required
                        autocomplete="name"
                        placeholder="e.g. Jane Doe"
-                       class="form-input"
+                       class="form-input shadow-sm focus:ring-2 focus:ring-slate-500"
                        aria-required="true">
             </div>
         </div>
@@ -193,7 +193,7 @@
                 <select id="signup-department"
                         name="department"
                         required
-                        class="form-input"
+                        class="form-input shadow-sm focus:ring-2 focus:ring-slate-500"
                         aria-required="true"
                         aria-label="Select your department">
                     <option value="" disabled selected>⏳ Loading departments…</option>
@@ -207,7 +207,7 @@
                         name="batch"
                         required
                         disabled
-                        class="form-input"
+                        class="form-input shadow-sm focus:ring-2 focus:ring-slate-500"
                         aria-required="true"
                         aria-label="Select your batch year">
                     <option value="" disabled selected>Select Department first</option>
@@ -224,7 +224,7 @@
                 <select id="signup-gender"
                         name="gender"
                         required
-                        class="form-input"
+                        class="form-input shadow-sm focus:ring-2 focus:ring-slate-500"
                         aria-required="true">
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
@@ -239,7 +239,7 @@
                        id="signup-dob"
                        name="dateOfBirth"
                        required
-                       class="form-input"
+                       class="form-input shadow-sm focus:ring-2 focus:ring-slate-500"
                        aria-required="true"
                        autocomplete="bday">
             </div>
@@ -256,7 +256,7 @@
                        name="kreapPrn"
                        autocomplete="off"
                        placeholder="e.g. KR202698765"
-                       class="form-input">
+                       class="form-input shadow-sm focus:ring-2 focus:ring-slate-500">
             </div>
             <div>
                 <label for="signup-appno" class="label-text block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -267,7 +267,7 @@
                        name="applicationNumber"
                        autocomplete="off"
                        placeholder="Allotment Form App No."
-                       class="form-input">
+                       class="form-input shadow-sm focus:ring-2 focus:ring-slate-500">
             </div>
         </div>
 
@@ -281,7 +281,7 @@
                    name="phoneNumber"
                    autocomplete="tel"
                    placeholder="e.g. 9876543210"
-                   class="form-input">
+                   class="form-input shadow-sm focus:ring-2 focus:ring-slate-500">
         </div>
 
         <!-- Field-level validation error placeholder -->
