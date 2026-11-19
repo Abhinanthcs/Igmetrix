@@ -124,6 +124,16 @@
             <span>Login</span>
         </button>
     </form>
+
+    <!-- Student Sign Up Prompt -->
+    <div id="student-signup-prompt" class="pt-4 border-t border-slate-100 text-center">
+        <p class="text-xs text-slate-500 font-medium">
+            New student?
+            <a href="/signup.html" class="font-bold text-slate-900 hover:text-slate-700 underline underline-offset-4 transition-colors">
+                Sign up here
+            </a>
+        </p>
+    </div>
 </div>
 
 <script>
@@ -144,6 +154,28 @@
             eyeOffIcon?.classList.add('hidden');
         }
     }
+
+    // Keep the Student Sign Up prompt synced with the active role tab
+    (function() {
+        const signupPrompt = document.getElementById('student-signup-prompt');
+        const roleInput = document.getElementById('role');
+        const tabs = document.querySelectorAll('[data-role]');
+
+        function syncSignupVisibility(role) {
+            if (!signupPrompt) return;
+            signupPrompt.classList.toggle('hidden', role !== 'student');
+        }
+
+        tabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                syncSignupVisibility(tab.getAttribute('data-role'));
+            });
+        });
+
+        if (roleInput) {
+            syncSignupVisibility(roleInput.value);
+        }
+    })();
 </script>
 
 <script src="/js/theme.js"></script>

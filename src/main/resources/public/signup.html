@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Sign Up — Attendance Core</title>
+
+    <!-- Zero-Flash Theme Initializer (must run before CSS paint) -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('theme');
+                var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                var theme = saved || (systemDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/image/logo/logo.svg">
+    <link rel="shortcut icon" href="/image/logo/logo.svg">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/css/tailwind.min.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    <link rel="stylesheet" href="/css/preloader.css">
+
+    <style>
+        /* ── Signup card custom scroll ── */
+        .signup-scroll::-webkit-scrollbar { width: 4px; }
+        .signup-scroll::-webkit-scrollbar-track { background: transparent; }
+        .signup-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+        [data-theme="dark"] .signup-scroll::-webkit-scrollbar-thumb { background: #334155; }
+
+        /* ── Smooth input focus ring consistent with login.html ── */
+        .form-input {
+            width: 100%;
+            padding: 0.625rem 1rem;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #1e293b;
+            transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .form-input::placeholder { color: #94a3b8; }
+        .form-input:focus {
+            background-color: #ffffff;
+            border-color: #0f172a;
+            box-shadow: 0 0 0 1px #0f172a;
+        }
+        [data-theme="dark"] .form-input {
+            background-color: #1e293b;
+            border-color: #334155;
+            color: #f1f5f9;
+        }
+        [data-theme="dark"] .form-input:focus {
+            background-color: #0f172a;
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 1px #38bdf8;
+        }
+        [data-theme="dark"] .form-input::placeholder { color: #64748b; }
+
+        /* ── select specific resets ── */
+        select.form-input { cursor: pointer; }
+
+        /* ── Animated inline spinner for button loading ── */
+        @keyframes btn-spin {
+            to { transform: rotate(360deg); }
+        }
+        .btn-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.35);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: btn-spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+            flex-shrink: 0;
+        }
+
+        /* ── Success checkmark ── */
+        @keyframes scale-in { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .success-icon { animation: scale-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+        /* ── Full-viewport centering with dynamic height ── */
+        body {
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+
+        /* ── Dark mode card & border overrides ── */
+        [data-theme="dark"] .signup-card {
+            background-color: var(--card-bg) !important;
+            border-color: var(--border-color) !important;
+        }
+        [data-theme="dark"] .divider-line { border-color: var(--border-color) !important; }
+        [data-theme="dark"] .label-text { color: var(--text-muted) !important; }
+        [data-theme="dark"] .card-title { color: var(--text-primary) !important; }
+        [data-theme="dark"] .card-subtitle { color: var(--text-muted) !important; }
+        [data-theme="dark"] .link-text { color: var(--text-primary) !important; }
+        [data-theme="dark"] .alt-link { color: var(--text-muted) !important; }
+    </style>
+</head>
+
+<!-- bg matches login.html gradient -->
+<body class="bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 flex items-center justify-center p-4 sm:p-6">
+
+<!-- Full-Screen Preloader Overlay -->
+<div id="preloader-overlay" class="preloader-overlay" role="status" aria-live="polite" aria-busy="true" aria-label="Loading page">
+    <div class="preloader-content">
+        <div class="preloader-spinner"></div>
+        <span class="preloader-text">Loading</span>
+        <span class="preloader-sr-only">Loading, please wait...</span>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SIGNUP CARD
+══════════════════════════════════════════ -->
+<div class="signup-card w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden my-6">
+
+    <!-- ── Card Header: Logo + Title ── -->
+    <div class="px-8 pt-8 pb-6 text-center space-y-3">
+        <!-- Logo container — same style as login.html -->
+        <div class="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center p-3 mx-auto shadow-lg shadow-slate-900/10">
+            <img src="/image/logo/logo.svg"
+                 alt="Attendance Core Logo"
+                 class="w-full h-full object-contain"
+                 loading="eager"
+                 decoding="async"
+                 onerror="this.style.display='none'; this.parentElement.innerHTML='<span class=\'text-white font-black text-xl\'>A</span>'">
+        </div>
+        <div class="space-y-1">
+            <h1 class="card-title text-xl font-black text-slate-900 tracking-tight">Create Your Account</h1>
+            <p class="card-subtitle text-xs text-slate-500 font-medium">Fill in your details to enroll as a student</p>
+        </div>
+    </div>
+
+    <div class="border-t divider-line border-slate-100"></div>
+
+    <!-- ── Alert Banner (success / error) ── -->
+    <div id="alert-banner" class="hidden mx-6 mt-5 p-3.5 rounded-xl text-xs font-bold border transition-all duration-200"></div>
+
+    <!-- ══ SIGNUP FORM ══ -->
+    <form id="signup-form" class="signup-scroll px-8 py-6 space-y-4 max-h-[72vh] overflow-y-auto" novalidate>
+
+        <!-- Row 1: Register Number + Full Name -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+                <label for="signup-reg" class="label-text block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Register Number <span class="text-red-500" aria-hidden="true">*</span>
+                </label>
+                <input type="text"
+                       id="signup-reg"
+                       name="registerNumber"
+                       required
+                       autocomplete="username"
+                       placeholder="e.g. WM24BCAR013"
+                       class="form-input"
+                       aria-required="true">
+            </div>
+            <div>
+                <label for="signup-name" class="label-text block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Full Name <span class="text-red-500" aria-hidden="true">*</span>
+                </label>
+                <input type="text"
+                       id="signup-name"
+                       name="name"
+                       required
+                       autocomplete="name"
+                       placeholder="e.g. Jane Doe"
+                       class="form-input"
+                       aria-required="true">
+            </div>
+        </div>
+
+        <!-- Row 2: Department + Batch -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+                <label for="signup-department" class="label-text block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Department <span class="text-red-500" aria-hidden="true">*</span>
+                </label>
+                <select id="signup-department"
+                        name="department"
+                        required
+                        class="form-input"
+                        aria-required="true"
+                        aria-label="Select your department">
+                    <option value="" disabled selected>⏳ Loading departments…</option>
+                </select>
+            </div>
+            <div>
+                <label for="signup-batch" class="label-text block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Batch Year <span class="text-red-500" aria-hidden="true">*</span>
+                </label>
+                <select id="signup-batch"
+                        name="batch"
+                        required
+                        disabled
+                        class="form-input"
+                        aria-required="true"
+                        aria-label="Select your batch year">
+                    <option value="" disabled selected>Select Department first</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Row 3: Gender + Date of Birth -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+                <label for="signup-gender" class="label-text block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Gender <span class="text-red-500" aria-hidden="true">*</span>
+                </label>
+                <select id="signup-gender"
+                        name="gender"
+                        required
+                        class="form-input"
+                        aria-required="true">
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div>
+                <label for="signup-dob" class="label-text block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Date of Birth <span class="text-red-500" aria-hidden="true">*</span>
+                </label>
+                <input type="date"
+                       id="signup-dob"
+                       name="dateOfBirth"
+                       required
+                       class="form-input"
+                       aria-required="true"
+                       autocomplete="bday">
+            </div>
+        </div>
+
+        <!-- Row 4: K-REAP PRN + Application Number -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+                <label for="signup-kreap" class="label-text block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    K-REAP PRN Number
+                </label>
+                <input type="text"
+                       id="signup-kreap"
+                       name="kreapPrn"
+                       autocomplete="off"
+                       placeholder="e.g. KR202698765"
+                       class="form-input">
+            </div>
+            <div>
+                <label for="signup-appno" class="label-text block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Application Number
+                </label>
+                <input type="text"
+                       id="signup-appno"
+                       name="applicationNumber"
+                       autocomplete="off"
+                       placeholder="Allotment Form App No."
+                       class="form-input">
+            </div>
+        </div>
+
+        <!-- Row 5: Phone Number (full width) -->
+        <div>
+            <label for="signup-phone" class="label-text block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Phone Number
+            </label>
+            <input type="tel"
+                   id="signup-phone"
+                   name="phoneNumber"
+                   autocomplete="tel"
+                   placeholder="e.g. 9876543210"
+                   class="form-input">
+        </div>
+
+        <!-- Field-level validation error placeholder -->
+        <div id="form-error" class="hidden text-xs text-red-600 font-bold text-center py-2.5 px-3 bg-red-50 border border-red-200/60 rounded-xl" role="alert" aria-live="assertive"></div>
+
+        <!-- Submit Button -->
+        <button type="submit"
+                id="signup-submit-btn"
+                class="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all text-xs shadow-lg shadow-slate-900/20 active:scale-[0.98] flex items-center justify-center gap-2 mt-2 min-h-[48px]"
+                aria-label="Create student account">
+            <span id="btn-label">Create Account</span>
+        </button>
+    </form>
+
+    <!-- ── Footer: Back to Login ── -->
+    <div class="px-8 pb-7 pt-1 text-center border-t divider-line border-slate-100">
+        <p class="alt-link text-xs text-slate-500 font-medium mt-4">
+            Already enrolled?
+            <a href="/login.html" class="link-text font-bold text-slate-900 hover:text-slate-700 underline underline-offset-4 transition-colors">
+                Sign in here
+            </a>
+        </p>
+    </div>
+
+</div><!-- /signup-card -->
+
+<!-- ══════════════════════════════════════════
+     SUCCESS OVERLAY (shown after registration)
+══════════════════════════════════════════ -->
+<div id="success-overlay" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="success-title">
+    <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-8 border border-slate-100 text-center space-y-4">
+        <!-- Animated Checkmark -->
+        <div class="success-icon w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+            <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+        </div>
+        <div>
+            <h2 id="success-title" class="text-lg font-black text-slate-900 tracking-tight">Registration Successful!</h2>
+            <p class="text-xs text-slate-500 mt-2 leading-relaxed">Your student account has been created. You can now sign in with your Register Number and Date of Birth.</p>
+        </div>
+        <a href="/login.html"
+           class="block w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-[0.98]">
+            Go to Sign In
+        </a>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SIGNUP LOGIC
+══════════════════════════════════════════ -->
+<script>
+/* ── Utility helpers (mirror admin.js style) ── */
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function setButtonLoading(btn, isLoading, loadingText = 'Processing...') {
+    if (!btn) return;
+    if (isLoading) {
+        btn.dataset.originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+        btn.innerHTML = `
+            <span class="inline-flex items-center justify-center gap-2">
+                <svg class="animate-spin h-3.5 w-3.5 text-current flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>${escapeHtml(loadingText)}</span>
+            </span>`;
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        if (btn.dataset.originalHtml) {
+            btn.innerHTML = btn.dataset.originalHtml;
+            delete btn.dataset.originalHtml;
+        }
+    }
+}
+
+/* ── Banner alert (matches admin.js showAlert) ── */
+function showAlert(message, isError = false) {
+    const banner = document.getElementById('alert-banner');
+    if (!banner) return;
+    banner.textContent = message;
+    banner.className = [
+        'mx-6 mt-5 p-3.5 rounded-xl text-xs font-bold border transition-all duration-200',
+        isError
+            ? 'bg-red-500/10 border-red-500/20 text-red-600'
+            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+    ].join(' ');
+    banner.classList.remove('hidden');
+    if (!isError) {
+        setTimeout(() => banner.classList.add('hidden'), 5000);
+    }
+}
+
+/* ── Inline form error ── */
+function showFormError(message) {
+    const el = document.getElementById('form-error');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.remove('hidden');
+}
+
+function clearFormError() {
+    const el = document.getElementById('form-error');
+    if (el) el.classList.add('hidden');
+}
+
+/* ── Department select loading state ── */
+function setDeptDropdownLoading(isLoading, errorText = null) {
+    const sel = document.getElementById('signup-department');
+    if (!sel) return;
+    if (isLoading) {
+        sel.innerHTML = '<option value="" disabled selected>⏳ Loading departments…</option>';
+        sel.disabled = true;
+    } else if (errorText) {
+        sel.innerHTML = `<option value="" disabled selected>${escapeHtml(errorText)}</option>`;
+        sel.disabled = false;
+    }
+    // On success, options are set by populateDepartments()
+}
+
+/* ── Fetch departments from the public API ── */
+async function loadDepartments() {
+    setDeptDropdownLoading(true);
+    try {
+        const res = await fetch('/api/public/departments');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const sel = document.getElementById('signup-department');
+        if (!sel) return;
+
+        if (!Array.isArray(data) || data.length === 0) {
+            setDeptDropdownLoading(false, '⚠ No departments available');
+            return;
+        }
+
+        sel.innerHTML = '<option value="" disabled selected>Select Department</option>';
+        data.forEach(dept => {
+            const opt = document.createElement('option');
+            // dept is a string (department name from DB)
+            opt.value = dept;
+            opt.textContent = dept;
+            sel.appendChild(opt);
+        });
+        sel.disabled = false;
+    } catch (err) {
+        console.error('Failed to load departments:', err);
+        setDeptDropdownLoading(false, '⚠ Failed to load — try refreshing');
+    }
+}
+
+/* ── Fetch batches for the selected department ── */
+async function loadBatchesForDepartment(department) {
+    const batchSel = document.getElementById('signup-batch');
+    if (!batchSel) return;
+
+    batchSel.disabled = true;
+    batchSel.innerHTML = '<option value="" disabled selected>⏳ Loading batches…</option>';
+
+    if (!department) {
+        batchSel.innerHTML = '<option value="" disabled selected>Select Department first</option>';
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/public/batches?department=${encodeURIComponent(department)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const batches = await res.json();
+
+        batchSel.innerHTML = '<option value="" disabled selected>Select Batch</option>';
+        if (!Array.isArray(batches) || batches.length === 0) {
+            batchSel.innerHTML = '<option value="" disabled selected>No batches available</option>';
+            return;
+        }
+        batches.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b;
+            opt.textContent = b;
+            batchSel.appendChild(opt);
+        });
+        batchSel.disabled = false;
+    } catch (err) {
+        console.error('Failed to load batches:', err);
+        batchSel.innerHTML = '<option value="" disabled selected>⚠ Failed to load batches</option>';
+        batchSel.disabled = false;
+    }
+}
+
+/* ── Client-side validation (matches admin.js field rules) ── */
+function validateSignupForm(payload) {
+    if (!payload.registerNumber || payload.registerNumber.length < 3) {
+        return 'Register Number is required (minimum 3 characters).';
+    }
+    if (!payload.name || payload.name.trim().length < 2) {
+        return 'Full Name is required (minimum 2 characters).';
+    }
+    if (!payload.department) {
+        return 'Please select your Department.';
+    }
+    if (!payload.batch) {
+        return 'Please select your Batch Year.';
+    }
+    if (!payload.dateOfBirth) {
+        return 'Date of Birth is required.';
+    }
+    // Validate DOB is a reasonable past date
+    const dob = new Date(payload.dateOfBirth);
+    const now = new Date();
+    if (isNaN(dob.getTime()) || dob >= now) {
+        return 'Please enter a valid past Date of Birth.';
+    }
+    // Optional: phone validation if provided
+    if (payload.phoneNumber && payload.phoneNumber !== 'N/A') {
+        const phoneRe = /^[6-9]\d{9}$|^\+?\d{7,15}$/;
+        if (!phoneRe.test(payload.phoneNumber.replace(/\s/g, ''))) {
+            return 'Please enter a valid phone number.';
+        }
+    }
+    return null; // No errors
+}
+
+/* ── Show success overlay ── */
+function showSuccessOverlay() {
+    const overlay = document.getElementById('success-overlay');
+    if (overlay) overlay.classList.remove('hidden');
+}
+
+/* ── Form submit handler (mirrors admin.js create-student flow) ── */
+async function handleSignupSubmit(e) {
+    e.preventDefault();
+    clearFormError();
+
+    const submitBtn = document.getElementById('signup-submit-btn');
+
+    const payload = {
+        registerNumber: document.getElementById('signup-reg')?.value.trim(),
+        name:           document.getElementById('signup-name')?.value.trim(),
+        department:     document.getElementById('signup-department')?.value,
+        batch:          document.getElementById('signup-batch')?.value,
+        gender:         document.getElementById('signup-gender')?.value,
+        dateOfBirth:    document.getElementById('signup-dob')?.value,
+        kreapPrn:       document.getElementById('signup-kreap')?.value.trim() || 'N/A',
+        applicationNumber: document.getElementById('signup-appno')?.value.trim() || 'N/A',
+        phoneNumber:    document.getElementById('signup-phone')?.value.trim() || 'N/A',
+    };
+
+    // Client-side validation
+    const validationError = validateSignupForm(payload);
+    if (validationError) {
+        showFormError(validationError);
+        return;
+    }
+
+    setButtonLoading(submitBtn, true, 'Creating Account…');
+
+    try {
+        const res = await fetch('/api/public/student-signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const text = await res.text();
+        let data = {};
+        if (text) {
+            try { data = JSON.parse(text); } catch (_) { /* raw text */ }
+        }
+
+        if (!res.ok) {
+            throw new Error(data.error || data.message || `Registration failed (${res.status}).`);
+        }
+
+        // ── Success ──
+        showSuccessOverlay();
+
+    } catch (err) {
+        showAlert(`Registration failed: ${err.message}`, true);
+    } finally {
+        setButtonLoading(submitBtn, false);
+    }
+}
+
+/* ── Wire up events on DOM ready ── */
+document.addEventListener('DOMContentLoaded', () => {
+    // Load departments immediately on page load
+    loadDepartments();
+
+    // Department change → load batches
+    const deptSel = document.getElementById('signup-department');
+    deptSel?.addEventListener('change', () => {
+        const dept = deptSel.value;
+        loadBatchesForDepartment(dept);
+    });
+
+    // Form submit
+    document.getElementById('signup-form')?.addEventListener('submit', handleSignupSubmit);
+
+    // Clear inline error when user starts typing
+    document.querySelectorAll('.form-input').forEach(el => {
+        el.addEventListener('input', clearFormError);
+        el.addEventListener('change', clearFormError);
+    });
+});
+</script>
+
+<!-- Theme & Preloader scripts (same order as login.html) -->
+<script src="/js/theme.js"></script>
+<script src="/js/preloader.js"></script>
+</body>
+</html>
