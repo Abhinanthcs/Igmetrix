@@ -1,0 +1,192 @@
+/**
+ * Refined Full-Screen Preloader Stylesheet
+ * Responsive, zero-flash theme-aware styling, GPU-accelerated.
+ */
+
+:root {
+  /* Fallback preloader tokens if theme.css is not yet parsed */
+  --loader-bg: #ffffff;
+  --loader-accent: #2563eb;
+  --loader-track: rgba(37, 99, 235, 0.15);
+  --loader-text: #64748b;
+
+  /* Dynamic viewport-responsive dimensions */
+  --preloader-size: clamp(40px, 9vw, 52px);
+  --preloader-thickness: clamp(3px, 0.65vw, 4px);
+  --preloader-speed: 0.85s;
+  --preloader-fade-duration: 0.4s;
+  --preloader-z-index: 999999;
+}
+
+[data-theme="dark"] {
+  --loader-bg: #0b1120;
+  --loader-accent: #38bdf8;
+  --loader-track: rgba(56, 189, 248, 0.18);
+  --loader-text: #94a3b8;
+}
+
+/* System-level preloader theme fallback before JS executes */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --loader-bg: #0b1120;
+    --loader-accent: #38bdf8;
+    --loader-track: rgba(56, 189, 248, 0.18);
+    --loader-text: #94a3b8;
+  }
+}
+
+/* Prevent scrolling while preloader is active */
+body.preloader-active,
+html.preloader-active {
+  overflow: hidden !important;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+/* Full-Screen Preloader Overlay */
+.preloader-overlay {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  /* dvh handles dynamic mobile browser address bars without layout jumping */
+  height: 100vh;
+  height: 100dvh;
+  background-color: var(--loader-bg);
+  z-index: var(--preloader-z-index);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--preloader-fade-duration) cubic-bezier(0.4, 0, 0.2, 1),
+              visibility var(--preloader-fade-duration) cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, visibility;
+  contain: strict;
+  pointer-events: all;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Hidden state for smooth fade-out */
+.preloader-overlay.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Preloader Content Stack */
+.preloader-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  transform: translateZ(0);
+}
+
+/* Modern Dual-Ring Arc Spinner */
+.preloader-spinner {
+  width: var(--preloader-size);
+  height: var(--preloader-size);
+  position: relative;
+  display: inline-block;
+  box-sizing: border-box;
+}
+
+.preloader-spinner::before,
+.preloader-spinner::after {
+  content: "";
+  box-sizing: border-box;
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: var(--preloader-thickness) solid transparent;
+}
+
+/* Outer Track Ring */
+.preloader-spinner::before {
+  border-color: var(--loader-track);
+}
+
+/* Inner High-Speed Spinning Arc */
+.preloader-spinner::after {
+  border-top-color: var(--loader-accent);
+  border-right-color: var(--loader-accent);
+  animation: preloader-spin var(--preloader-speed) cubic-bezier(0.55, 0.08, 0.45, 0.92) infinite;
+  transform: translateZ(0);
+}
+
+/* Subtle Loading Label */
+.preloader-text {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: clamp(0.75rem, 2.5vw, 0.8125rem);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--loader-text);
+  animation: preloader-fade-pulse 1.8s ease-in-out infinite;
+}
+
+/* Screen reader only utility */
+.preloader-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* High-performance spin keyframes */
+@keyframes preloader-spin {
+  0% {
+    transform: rotate(0deg) translateZ(0);
+  }
+  100% {
+    transform: rotate(360deg) translateZ(0);
+  }
+}
+
+/* Subtle Label Pulse */
+@keyframes preloader-fade-pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Accessibility: prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .preloader-overlay {
+    transition-duration: 0.15s;
+  }
+
+  .preloader-spinner::after {
+    animation: preloader-pulse 1.2s ease-in-out infinite;
+    border-color: var(--loader-accent);
+  }
+
+  .preloader-text {
+    animation: none;
+    opacity: 0.85;
+  }
+}
+
+@keyframes preloader-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.96) translateZ(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04) translateZ(0);
+  }
+}
