@@ -237,8 +237,133 @@ data class TimetableDayResponse(
     val slots: List<TimetableSlotResponse>
 )
 
+// ─── Public Self-Registration DTO ───────────────────────────────────────────
+@Serializable
+data class StudentSelfSignupRequest(
+    val registerNumber: String,
+    val name: String,
+    val department: String,
+    val batch: String,
+    val dateOfBirth: String,
+    val phoneNumber: String,
+    val gender: String,
+    val kreapPrn: String,
+    val applicationNumber: String
+)
+
 fun Application.configureAdminRoutes() {
     routing {
+
+        // ── PUBLIC ROUTES (no JWT required) ─────────────────────────────────────
+        route("/api/public") {
+
+            // GET /api/public/departments  → returns list of department name strings from the admins table
+            get("/departments") {
+                val departments = transaction {
+                    Admins.select(Admins.department)
+                        .orderBy(Admins.department to SortOrder.ASC)
+                        .map { it[Admins.department] }
+                }
+                call.respond(HttpStatusCode.OK, departments)
+            }
+
+            // GET /api/public/batches?department=BCA  → returns batch strings for that department
+            get("/batches") {
+                val dept = call.request.queryParameters["department"]
+                if (dept.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "department query param is required"))
+                    return@get
+                }
+                val batches = transaction {
+                    Batches.select(Batches.batch)
+                        .where { Batches.department eq dept.trim() }
+                        .orderBy(Batches.batch to SortOrder.DESC)
+                        .map { it[Batches.batch] }
+                }
+                call.respond(HttpStatusCode.OK, batches)
+            }
+
+            // POST /api/public/student-signup  → self-enroll a new student (no admin token needed)
+            post("/student-signup") {
+                val req = try {
+                    call.receive<StudentSelfSignupRequest>()
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid request body. Please check all fields."))
+                    return@post
+                }
+
+                // Basic server-side validation
+                if (req.registerNumber.isBlank() || req.name.isBlank() || req.department.isBlank() || req.batch.isBlank() || req.dateOfBirth.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Required fields are missing."))
+                    return@post
+                }
+
+                // Verify department exists in admins table
+                val deptExists = transaction {
+                    Admins.selectAll().where { Admins.department eq req.department.trim() }.count() > 0
+                }
+                if (!deptExists) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Selected department does not exist."))
+                    return@post
+                }
+
+                // Verify batch belongs to that department
+                val batchExists = transaction {
+                    Batches.selectAll().where {
+                        (Batches.batch eq req.batch.trim()) and (Batches.department eq req.department.trim())
+                    }.count() > 0
+                }
+                if (!batchExists) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Selected batch does not belong to the chosen department."))
+                    return@post
+                }
+
+                // Parse date of birth
+                val parsedDob = try {
+                    java.time.LocalDate.parse(req.dateOfBirth.trim())
+                } catch (e: Exception) {
+                    try {
+                        java.time.LocalDate.parse(req.dateOfBirth.trim(), java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                    } catch (e2: Exception) {
+                        call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid Date of Birth format. Use YYYY-MM-DD."))
+                        return@post
+                    }
+                }
+
+                try {
+                    transaction {
+                        Users.insert {
+                            it[registerNumber] = req.registerNumber.trim().uppercase()
+                            it[name] = req.name.trim()
+                            it[department] = req.department.trim()
+                            it[batch] = req.batch.trim()
+                            it[dateOfBirth] = parsedDob
+                            it[phoneNumber] = req.phoneNumber.trim().ifBlank { "N/A" }
+                            it[role] = "student"
+                            it[gender] = req.gender.trim().ifBlank { "Male" }
+                            it[kreapPrn] = req.kreapPrn.trim().ifBlank { "N/A" }
+                            it[applicationNumber] = req.applicationNumber.trim().ifBlank { "N/A" }
+                        }
+                        // Increment batch student count
+                        Batches.update({ Batches.batch eq req.batch.trim() }) {
+                            with(SqlExpressionBuilder) {
+                                it[studentCount] = studentCount + 1
+                            }
+                        }
+                    }
+                    call.respond(HttpStatusCode.Created, mapOf("message" to "Student registered successfully. You can now sign in."))
+                } catch (e: ExposedSQLException) {
+                    if (e.message?.contains("unique", ignoreCase = true) == true ||
+                        e.message?.contains("duplicate", ignoreCase = true) == true) {
+                        call.respond(HttpStatusCode.Conflict, mapOf("error" to "A student with this Register Number already exists."))
+                    } else {
+                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Registration failed: ${e.message}"))
+                    }
+                }
+            }
+        }
+
+        // ── ADMIN ROUTES (JWT protected) ─────────────────────────────────────────
         authenticate("auth-jwt") {
             route("/api/admin") {
 

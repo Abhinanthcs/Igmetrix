@@ -9,9 +9,18 @@
     <link rel="shortcut icon" href="/image/logo/logo.svg">
 
     <link rel="stylesheet" href="/css/tailwind.min.css">
+    <link rel="stylesheet" href="/css/preloader.css">
 </head>
 
 <body class="bg-slate-50 min-h-screen text-slate-900 font-sans pb-12">
+
+<!-- Full-Screen Preloader Overlay -->
+<div id="preloader-overlay" class="preloader-overlay" role="status" aria-live="polite" aria-label="Loading page">
+    <div class="preloader-content">
+        <div class="preloader-spinner"></div>
+        <span class="preloader-sr-only">Loading, please wait...</span>
+    </div>
+</div>
 
 <nav class="sticky top-0 z-50 bg-slate-900 text-white shadow-md border-b border-slate-800">
     <div class="px-4 py-4 max-w-4xl mx-auto flex justify-between items-center">
@@ -112,5 +121,6 @@
 
 <script src="js/auth.js"></script>
 <script src="js/teacher.js"></script>
+<script src="/js/preloader.js"></script>
 </body>
 </html>
