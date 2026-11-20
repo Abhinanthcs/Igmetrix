@@ -18,23 +18,6 @@
   --preloader-z-index: 999999;
 }
 
-[data-theme="dark"] {
-  --loader-bg: #0b1120;
-  --loader-accent: #38bdf8;
-  --loader-track: rgba(56, 189, 248, 0.18);
-  --loader-text: #94a3b8;
-}
-
-/* System-level preloader theme fallback before JS executes */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --loader-bg: #0b1120;
-    --loader-accent: #38bdf8;
-    --loader-track: rgba(56, 189, 248, 0.18);
-    --loader-text: #94a3b8;
-  }
-}
-
 /* Prevent scrolling while preloader is active */
 body.preloader-active,
 html.preloader-active {

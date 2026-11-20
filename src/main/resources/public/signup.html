@@ -5,27 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Sign Up — Attendance Core</title>
 
-    <!-- Zero-Flash Theme Initializer (must run before CSS paint) -->
-    <script>
-        (function () {
-            try {
-                var saved = localStorage.getItem('theme');
-                var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                var theme = saved || (systemDark ? 'dark' : 'light');
-                document.documentElement.setAttribute('data-theme', theme);
-            } catch (e) {
-                document.documentElement.setAttribute('data-theme', 'light');
-            }
-        })();
-    </script>
-
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/image/logo/logo.svg">
     <link rel="shortcut icon" href="/image/logo/logo.svg">
 
     <!-- Stylesheets -->
     <link rel="stylesheet" href="/css/tailwind.min.css">
-    <link rel="stylesheet" href="/css/theme.css">
     <link rel="stylesheet" href="/css/preloader.css">
 
     <style>
@@ -33,7 +18,6 @@
         .signup-scroll::-webkit-scrollbar { width: 4px; }
         .signup-scroll::-webkit-scrollbar-track { background: transparent; }
         .signup-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
-        [data-theme="dark"] .signup-scroll::-webkit-scrollbar-thumb { background: #334155; }
 
         /* ── Smooth input focus ring consistent with login.html ── */
         .form-input {
@@ -47,8 +31,6 @@
             color: #1e293b;
             transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
             outline: none;
-            -webkit-appearance: none;
-            appearance: none;
         }
         .form-input::placeholder { color: #94a3b8; }
         .form-input:focus {
@@ -56,20 +38,18 @@
             border-color: #0f172a;
             box-shadow: 0 0 0 1px #0f172a;
         }
-        [data-theme="dark"] .form-input {
-            background-color: #1e293b;
-            border-color: #334155;
-            color: #f1f5f9;
-        }
-        [data-theme="dark"] .form-input:focus {
-            background-color: #0f172a;
-            border-color: #38bdf8;
-            box-shadow: 0 0 0 1px #38bdf8;
-        }
-        [data-theme="dark"] .form-input::placeholder { color: #64748b; }
 
-        /* ── select specific resets ── */
-        select.form-input { cursor: pointer; }
+        /* ── Select specific styling with clean dropdown arrow ── */
+        select.form-input {
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.75rem center;
+            background-repeat: no-repeat;
+            background-size: 1.25em 1.25em;
+            padding-right: 2.5rem;
+        }
 
         /* ── Animated inline spinner for button loading ── */
         @keyframes btn-spin {
@@ -97,23 +77,11 @@
             min-height: 100vh;
             min-height: 100dvh;
         }
-
-        /* ── Dark mode card & border overrides ── */
-        [data-theme="dark"] .signup-card {
-            background-color: var(--card-bg) !important;
-            border-color: var(--border-color) !important;
-        }
-        [data-theme="dark"] .divider-line { border-color: var(--border-color) !important; }
-        [data-theme="dark"] .label-text { color: var(--text-muted) !important; }
-        [data-theme="dark"] .card-title { color: var(--text-primary) !important; }
-        [data-theme="dark"] .card-subtitle { color: var(--text-muted) !important; }
-        [data-theme="dark"] .link-text { color: var(--text-primary) !important; }
-        [data-theme="dark"] .alt-link { color: var(--text-muted) !important; }
     </style>
 </head>
 
 <!-- bg matches login.html gradient -->
-<body class="bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 flex flex-col items-center justify-center min-h-screen p-4 sm:p-6">
+<body class="bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 flex flex-col items-center justify-center min-h-screen min-h-[100dvh] p-4 sm:p-6">
 
 <!-- Full-Screen Preloader Overlay -->
 <div id="preloader-overlay" class="preloader-overlay" role="status" aria-live="polite" aria-busy="true" aria-label="Loading page">
@@ -127,10 +95,10 @@
 <!-- ══════════════════════════════════════════
      SIGNUP CARD
 ══════════════════════════════════════════ -->
-<div class="signup-card w-full max-w-md sm:max-w-lg lg:max-w-xl mt-12 bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
+<div class="signup-card w-full max-w-md sm:max-w-lg lg:max-w-xl my-auto bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
 
     <!-- ── Card Header: Logo + Title ── -->
-    <div class="px-8 pt-8 pb-6 text-center space-y-3">
+    <div class="px-6 pt-6 pb-4 sm:px-8 sm:pt-8 sm:pb-6 text-center space-y-3">
         <!-- Logo container — same style as login.html -->
         <div class="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center p-3 mx-auto shadow-lg shadow-slate-900/10">
             <img src="/image/logo/logo.svg"
@@ -146,13 +114,13 @@
         </div>
     </div>
 
-    <div class="border-t divider-line border-slate-100"></div>
+    <div class="border-t border-slate-100"></div>
 
     <!-- ── Alert Banner (success / error) ── -->
     <div id="alert-banner" class="hidden mx-6 mt-5 p-3.5 rounded-xl text-xs font-bold border transition-all duration-200"></div>
 
     <!-- ══ SIGNUP FORM ══ -->
-    <form id="signup-form" class="signup-scroll px-8 py-6 space-y-4 max-h-[72vh] overflow-y-auto" novalidate>
+    <form id="signup-form" class="signup-scroll px-6 py-5 sm:px-8 sm:py-6 space-y-4 max-h-[68vh] sm:max-h-[72vh] overflow-y-auto" novalidate>
 
         <!-- Row 1: Register Number + Full Name -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -297,10 +265,10 @@
     </form>
 
     <!-- ── Footer: Back to Login ── -->
-    <div class="px-8 pb-7 pt-1 text-center border-t divider-line border-slate-100">
-        <p class="alt-link text-xs text-slate-500 font-medium mt-4">
+    <div class="px-6 pb-6 pt-1 sm:px-8 sm:pb-7 text-center border-t border-slate-100">
+        <p class="text-xs text-slate-500 font-medium mt-4">
             Already enrolled?
-            <a href="/login.html" class="link-text font-bold text-slate-900 hover:text-slate-700 underline underline-offset-4 transition-colors">
+            <a href="/login.html" class="font-bold text-slate-900 hover:text-slate-700 underline underline-offset-4 transition-colors">
                 Sign in here
             </a>
         </p>
@@ -598,8 +566,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-<!-- Theme & Preloader scripts (same order as login.html) -->
-<script src="/js/theme.js"></script>
 <script src="/js/preloader.js"></script>
 </body>
 </html>
