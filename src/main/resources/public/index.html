@@ -1,18 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attendance System Gateway</title>
 
-    <!-- Zero-Flash Theme Initializer (Must be placed first inside <head>) -->
+    <!-- Zero-Flash Theme Initializer (Default: light) -->
     <script>
         (function() {
             try {
-                var saved = localStorage.getItem('theme');
-                var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                var theme = saved || (systemDark ? 'dark' : 'light');
-                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-theme', 'light');
             } catch (e) {
                 document.documentElement.setAttribute('data-theme', 'light');
             }
@@ -44,9 +41,8 @@
         <h1 class="text-xl font-bold tracking-wide">ATTENDANCE MANAGEMENT HIERARCHY</h1>
         <div class="flex items-center space-x-3">
             <span class="text-xs bg-slate-800 px-3 py-1 rounded text-slate-400 font-mono hidden sm:inline-block">v2.0 Stable</span>
-            <!-- Theme Toggle Button -->
+            <!-- Theme Toggle Button (Disabled)
             <button type="button" class="theme-toggle-btn" data-theme-toggle aria-label="Toggle theme">
-                <!-- Sun Icon -->
                 <svg class="theme-toggle-icon icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <circle cx="12" cy="12" r="5"></circle>
                     <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -58,11 +54,11 @@
                     <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                 </svg>
-                <!-- Moon Icon -->
                 <svg class="theme-toggle-icon icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                 </svg>
             </button>
+            -->
         </div>
     </div>
 </header>
@@ -108,7 +104,7 @@
     <p>&copy; 2026 Institutional Attendance System. Authorized access parameters enforced.</p>
 </footer>
 
-<script src="/js/theme.js"></script>
+<!-- <script src="/js/theme.js"></script> -->
 <script src="/js/preloader.js"></script>
 </body>
 </html>

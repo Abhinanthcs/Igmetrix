@@ -9,9 +9,9 @@
   var THEME_STORAGE_KEY = 'theme';
   var mediaQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
-  // Determine current system theme
+  // Determine current system theme (default: light)
   function getSystemTheme() {
-    return (mediaQuery && mediaQuery.matches) ? 'dark' : 'light';
+    return 'light';
   }
 
   // Get current active theme

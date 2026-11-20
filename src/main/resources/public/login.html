@@ -1,18 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Attendance Core</title>
 
-    <!-- Zero-Flash Theme Initializer (Must be placed first inside <head>) -->
+    <!-- Zero-Flash Theme Initializer (Default: light) -->
     <script>
         (function() {
             try {
-                var saved = localStorage.getItem('theme');
-                var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                var theme = saved || (systemDark ? 'dark' : 'light');
-                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-theme', 'light');
             } catch (e) {
                 document.documentElement.setAttribute('data-theme', 'light');
             }
@@ -39,7 +36,7 @@
     </div>
 </div>
 
- Floating Responsive Theme Toggle Button
+<!-- Floating Responsive Theme Toggle Button
 <div class="theme-toggle-floating" role="region" aria-label="Theme switcher">
     <button
             type="button"
@@ -50,7 +47,6 @@
             title="Toggle dark/light mode"
     >
     <span class="theme-toggle-track">
-      <!-- Sun Icon (Light Mode) -->
       <svg
               class="theme-toggle-icon icon-sun"
               xmlns="http://www.w3.org/2000/svg"
@@ -73,7 +69,6 @@
         <path d="m19.07 4.93-1.41 1.41"></path>
       </svg>
 
-        <!-- Moon Icon (Dark Mode) -->
       <svg
               class="theme-toggle-icon icon-moon"
               xmlns="http://www.w3.org/2000/svg"
@@ -90,6 +85,7 @@
     </span>
     </button>
 </div>
+-->
 
 <div class="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden p-8 space-y-6">
 
@@ -208,7 +204,7 @@
     })();
 </script>
 
-<script src="/js/theme.js"></script>
+<!-- <script src="/js/theme.js"></script> -->
 <script src="/js/auth.js"></script>
 <script src="/js/preloader.js"></script>
 </body>

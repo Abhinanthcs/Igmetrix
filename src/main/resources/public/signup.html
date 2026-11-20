@@ -1,18 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Sign Up — Attendance Core</title>
 
-    <!-- Zero-Flash Theme Initializer (must run before CSS paint) -->
+    <!-- Zero-Flash Theme Initializer (Default: light) -->
     <script>
         (function () {
             try {
-                var saved = localStorage.getItem('theme');
-                var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                var theme = saved || (systemDark ? 'dark' : 'light');
-                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.setAttribute('data-theme', 'light');
             } catch (e) {
                 document.documentElement.setAttribute('data-theme', 'light');
             }
@@ -599,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <!-- Theme & Preloader scripts (same order as login.html) -->
-<script src="/js/theme.js"></script>
+<!-- <script src="/js/theme.js"></script> -->
 <script src="/js/preloader.js"></script>
 </body>
 </html>
